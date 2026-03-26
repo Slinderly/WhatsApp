@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhatsApp Web Framework</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── SIDEBAR ──────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">WA <span class="logo-accent">Framework</span></span>
+      <small>Multi-sesión · Baileys</small>
+    </div>
+
+    <nav>
+      <button class="nav-btn active" data-tab="connect">Conectar</button>
+      <button class="nav-btn" data-tab="send">Enviar mensaje</button>
+      <button class="nav-btn" data-tab="messages">Mensajes</button>
+      <button class="nav-btn" data-tab="docs">API Docs</button>
+    </nav>
+
+    <div class="account-box">
+      <label>Account ID</label>
+      <input id="accountId" type="text" value="cuenta1" placeholder="mi-cuenta">
+      <small>Identifica a qué cuenta pertenecen las sesiones</small>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ─────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ══ TAB: CONECTAR ══ -->
+    <section class="tab active" id="tab-connect">
+      <div class="tab-header">
+        <h1>Conectar WhatsApp</h1>
+        <p>Vincula una o más sesiones a tu cuenta</p>
+      </div>
+
+      <div class="sessions-bar">
+        <h2>Sesiones activas</h2>
+        <button class="btn btn-ghost" onclick="refreshSessions()">↻ Actualizar</button>
+      </div>
+      <div id="sessionsList" class="sessions-list">
+        <div class="empty">Sin sesiones aún</div>
+      </div>
+
+      <div class="connect-cards">
+
+        <!-- QR -->
+        <div class="card">
+          <div class="card-title">
+            <span class="badge badge-blue">QR</span>
+            Código QR
+          </div>
+          <p class="card-desc">Escanea desde WhatsApp → Ajustes → Dispositivos vinculados</p>
+          <div id="qrBox" class="qr-box">
+            <span>Presiona generar para ver el QR</span>
+          </div>
+          <div class="card-status" id="qrStatus"></div>
+          <button class="btn btn-primary" onclick="startQR()">Generar QR</button>
+        </div>
+
+        <!-- Pairing -->
+        <div class="card">
+          <div class="card-title">
+            <span class="badge badge-green">CÓDIGO</span>
+            Código de emparejamiento
+          </div>
+          <p class="card-desc">Vincula sin escanear — WhatsApp → Ajustes → Dispositivos vinculados → Vincular con código</p>
+          <div class="form-group">
+            <label>Número de teléfono</label>
+            <input id="pairPhone" type="tel" placeholder="+1234567890" style="width:100%">
+          </div>
+          <div id="pairingCode" class="pairing-code" style="display:none"></div>
+          <div class="card-status" id="pairStatus"></div>
+          <button class="btn btn-primary" onclick="startPairing()">Obtener código</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══ TAB: ENVIAR ══ -->
+    <section class="tab" id="tab-send">
+      <div class="tab-header">
+        <h1>Enviar mensaje</h1>
+        <p>Envía un mensaje a cualquier número desde la cuenta activa</p>
+      </div>
+
+      <div class="card" style="max-width:520px">
+        <div class="form-group">
+          <label>Número destino (JID)</label>
+          <input id="sendJid" type="text" placeholder="5219991234567@s.whatsapp.net">
+          <small>Formato: <code>número@s.whatsapp.net</code> · grupos: <code>id@g.us</code></small>
+        </div>
+        <div class="form-group">
+          <label>Mensaje</label>
+          <textarea id="sendText" rows="4" placeholder="Hola, ¿cómo estás?"></textarea>
+        </div>
+        <div id="sendStatus" class="card-status"></div>
+        <button class="btn btn-primary" onclick="sendMsg()">Enviar →</button>
+      </div>
+    </section>
+
+    <!-- ══ TAB: MENSAJES ══ -->
+    <section class="tab" id="tab-messages">
+      <div class="tab-header">
+        <h1>Mensajes recibidos</h1>
+        <p>Historial en tiempo real — se actualiza cada 2 segundos</p>
+      </div>
+      <div class="toolbar">
+        <label style="font-size:.83rem;color:var(--text-sub)">
+          <input type="checkbox" id="autoScroll" checked> Auto-scroll
+        </label>
+        <button class="btn btn-ghost" onclick="clearMsgLog()">Limpiar vista</button>
+      </div>
+      <div id="messageLog" class="message-log">
+        <div class="empty">Sin mensajes aún. Conecta una sesión y espera mensajes.</div>
+      </div>
+    </section>
+
+    <!-- ══ TAB: DOCS ══ -->
+    <section class="tab" id="tab-docs">
+      <div class="tab-header">
+        <h1>API Reference</h1>
+        <p>Endpoints disponibles para integrarlo en tu proyecto</p>
+      </div>
+
+      <div class="docs">
+
+        <div class="doc-group">
+          <h2>Sesiones</h2>
+
+          <div class="endpoint">
+            <div class="ep-header"><span class="method get">GET</span><code>/wa/sessions/:accountId</code></div>
+            <p>Lista todas las sesiones de una cuenta con su estado y dispositivo.</p>
+            <pre>{
+  "sessions": [
+    {
+      "sessionId": "abc123",
+      "status": "connected",
+      "device": {
+        "phone": "5219991234567",
+        "name": "Mi iPhone",
+        "connectedAt": "2025-01-01T00:00:00.000Z"
+      }
+    }
+  ]
+}</pre>
+          </div>
+
+          <div class="endpoint">
+            <div class="ep-header"><span class="method get">GET</span><code>/wa/status/:accountId/:sessionId</code></div>
+            <p>Estado de una sesión. Si hay QR disponible lo devuelve como data URL.</p>
+            <pre>{
+  "sessionId": "abc123",
+  "status": "qr_ready",
+  "device": null,
+  "hasQR": true,
+  "qr": "data:image/png;base64,..."
+}</pre>
+          </div>
+        </div>
+
+        <div class="doc-group">
+          <h2>Conectar</h2>
+
+          <div class="endpoint">
+            <div class="ep-header"><span class="method post">POST</span><code>/wa/connect/qr</code></div>
+            <p>Inicia sesión con flujo QR. Luego haz polling a <code>/wa/status</code> para obtener el código.</p>
+            <pre>// Body
+{ "accountId": "cuenta1", "sessionId": "opcional" }
+// Response
+{ "success": true, "sessionId": "abc123" }</pre>
+          </div>
+
+          <div class="endpoint">
+            <div class="ep-header"><span class="method post">POST</span><code>/wa/connect/pairing</code></div>
+            <p>Inicia sesión con código de emparejamiento. Devuelve el código de 8 dígitos.</p>
+            <pre>// Body
+{ "accountId": "cuenta1", "phoneNumber": "+5219991234567" }
+// Response
+{ "success": true, "sessionId": "abc123", "code": "ABCD-1234" }</pre>
+          </div>
+
+          <div class="endpoint">
+            <div class="ep-header"><span class="method delete">DELETE</span><code>/wa/sessions/:accountId/:sessionId</code></div>
+            <p>Desconecta y elimina la sesión. Borra los archivos de autenticación.</p>
+          </div>
+        </div>
+
+        <div class="doc-group">
+          <h2>Mensajes</h2>
+
+          <div class="endpoint">
+            <div class="ep-header"><span class="method post">POST</span><code>/wa/send</code></div>
+            <p>Envía un mensaje de texto. Usa la primera sesión conectada del <code>accountId</code>.</p>
+            <pre>// Body
+{
+  "accountId": "cuenta1",
+  "jid": "5219991234567@s.whatsapp.net",
+  "text": "Hola!",
+  "sessionId": "opcional"
+}
+// Response
+{ "success": true }</pre>
+          </div>
+
+          <div class="endpoint">
+            <div class="ep-header"><span class="method get">GET</span><code>/wa/messages?accountId=cuenta1&amp;limit=50</code></div>
+            <p>Log de mensajes recibidos en memoria (demo). En producción escucha el evento <code>message</code> del SDK y guarda en tu DB.</p>
+          </div>
+        </div>
+
+        <div class="doc-group">
+          <h2>Integración Node.js</h2>
+          <pre class="code-block">const wa = require('./src/whatsapp');
+
+// Escuchar mensajes entrantes
+wa.on('message', (msg) => {
+  // msg = { accountId, sessionId, jid, from, text, timestamp, raw }
+  console.log(msg.from, ':', msg.text);
+  // Aquí conectas tu IA, DB, lógica de negocio, etc.
+});
+
+wa.on('connected',    ({ accountId, sessionId, phone }) => { ... });
+wa.on('disconnected', ({ accountId, sessionId, reason }) => { ... });
+
+// API programática
+await wa.connectQR('mi-cuenta', 'sesion-1');
+await wa.connectPairing('mi-cuenta', 'sesion-2', '+521234567890');
+await wa.sendMessage('mi-cuenta', '521234567890@s.whatsapp.net', 'Hola');
+wa.disconnectSession('mi-cuenta', 'sesion-1');
+
+// Al arrancar el servidor
+wa.restoreSessions(); // reconecta sesiones guardadas</pre>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/js/app.js"></script>
+</body>
+</html>

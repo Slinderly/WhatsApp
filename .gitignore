@@ -1,0 +1,11 @@
+node_modules/
+sessions/
+data/
+.env
+.replit
+replit.nix
+.cache/
+.local/
+.agents/
+.nomedia
+.database_uuid
