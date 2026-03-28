@@ -372,6 +372,47 @@ const getQRDataUrl = async (accountId, sessionId) => {
     } catch (_) { return null; }
 };
 
+// ── Obtener todos los grupos de una cuenta ─────────────────────────────────
+const getGroups = async (accountId) => {
+    const sessions = [...(accountSets[accountId] || [])];
+    for (const sessionId of sessions) {
+        const kk = makeKey(accountId, sessionId);
+        if (statuses[kk] === 'connected' && sockets[kk]) {
+            const raw = await sockets[kk].groupFetchAllParticipating();
+            return Object.values(raw).map(g => ({
+                id: g.id,
+                name: g.subject || g.id,
+                participants: g.participants?.length || 0,
+                desc: g.desc || '',
+            }));
+        }
+    }
+    throw new Error('No hay sesión activa para esta cuenta');
+};
+
+// ── Obtener miembros de un grupo ───────────────────────────────────────────
+const getGroupMembers = async (accountId, groupId) => {
+    const sessions = [...(accountSets[accountId] || [])];
+    for (const sessionId of sessions) {
+        const kk = makeKey(accountId, sessionId);
+        if (statuses[kk] === 'connected' && sockets[kk]) {
+            const meta = await sockets[kk].groupMetadata(groupId);
+            const me   = sockets[kk].authState?.creds?.me?.id?.split(':')[0]?.split('@')[0];
+            return meta.participants
+                .filter(p => {
+                    const num = p.id.split('@')[0];
+                    return num !== me;
+                })
+                .map(p => ({
+                    jid:   p.id,
+                    phone: p.id.split('@')[0],
+                    admin: p.admin || null,
+                }));
+        }
+    }
+    throw new Error('No hay sesión activa para esta cuenta');
+};
+
 // ── Auto-reconectar sesiones guardadas al iniciar ──────────────────────────
 const restoreSessions = () => {
     if (!fs.existsSync(SESSIONS_DIR)) return;
@@ -464,6 +505,8 @@ module.exports = {
     getSessionStatus,
     getQRDataUrl,
     restoreSessions,
+    getGroups,
+    getGroupMembers,
 
     // Express route handlers (listos para usar con router.get / router.post)
     handlers,

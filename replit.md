@@ -1,93 +1,218 @@
-# WA Framework — WhatsApp Web Multi-Session
+# wibc.ai
 
-## Overview
-A standalone, reusable WhatsApp Web framework built on [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys). Supports multiple accounts and sessions, QR code and pairing-code connection, message sending/receiving via EventEmitter, and auto-reconnection. Comes with a demo UI and a REST API ready to plug into any project.
+Plataforma SaaS para crear bots de ventas en WhatsApp con Inteligencia Artificial. Cada usuario tiene su propia cuenta, configura su bot y puede conectar múltiples números de WhatsApp (personal y Business).
 
-## Architecture
-- **Runtime**: Node.js (CommonJS)
-- **Framework**: Express.js (v5)
-- **WhatsApp**: @whiskeysockets/baileys
-- **Frontend**: Static HTML/CSS/JS in `public/` (dark theme demo UI)
+---
 
-## Project Structure
+## ¿Qué hace?
+
+- Conecta tu WhatsApp y responde mensajes automáticamente con IA (Google Gemini)
+- Soporta múltiples números de WhatsApp por cuenta
+- Modo IA: responde usando Google Gemini con tu catálogo de productos y personalidad personalizada
+
+---
+
+## Tecnologías
+
+| Capa | Tecnología |
+|------|-----------|
+| Backend | Node.js + Express 5 |
+| WhatsApp | @whiskeysockets/baileys |
+| Inteligencia Artificial | Google Gemini (via @google/genai) |
+| Frontend | HTML + CSS + JS puro (sin frameworks) |
+| Almacenamiento | Archivos JSON locales |
+| Iconos | Lucide |
+
+---
+
+## Estructura del proyecto
+
 ```
-├── server.js           Entry point — Express server + event listeners (demo)
+wibc.ai/
+├── server.js               # Punto de entrada, inicia Express y reconecta sesiones guardadas
+├── package.json
 ├── src/
-│   └── whatsapp.js     Core framework — all WhatsApp logic
+│   ├── routes.js           # API principal: auth, datos de usuario, WhatsApp
+│   ├── whatsapp.js         # Motor de WhatsApp (Baileys): QR, pairing code, reconexión
+│   ├── ai.js               # Motor de IA: Gemini, flujos de conversación, palabras clave
+│   └── admin-routes.js     # API del panel admin: sistema de archivos, autenticación
 ├── public/
-│   ├── index.html      Demo UI (Connect · Send · Messages · API Docs)
-│   ├── css/style.css   Dark theme styles
-│   └── js/app.js       Demo UI JavaScript
-├── sessions/           Auth credentials per session (auto-created, gitignored)
-└── package.json
+│   ├── index.html          # Login y registro
+│   ├── dashboard.html      # Panel de usuario
+│   ├── admin.html          # Panel de administración
+│   ├── css/
+│   │   ├── style.css       # Estilos del dashboard y login
+│   │   └── admin.css       # Estilos del panel admin
+│   └── js/
+│       ├── auth.js         # Lógica de login/registro
+│       ├── dashboard.js    # Lógica del dashboard
+│       └── admin.js        # Lógica del panel admin
+└── data/
+    ├── users.json          # Registro de usuarios
+    ├── user_data/
+    │   └── {userId}.json   # Configuración del bot de cada usuario
+    └── auth_{userId}_{sessionId}/  # Credenciales de sesión WhatsApp (Baileys)
 ```
 
-## Core Module — src/whatsapp.js
+---
 
-### Exported API
-```js
-const wa = require('./src/whatsapp');
+## Instalación y configuración
 
-// Connect
-await wa.connectQR(accountId, sessionId)
-await wa.connectPairing(accountId, sessionId, phoneNumber)  // returns pairing code string
-wa.disconnectSession(accountId, sessionId)
+### 1. Instalar dependencias
 
-// Send
-await wa.sendMessage(accountId, jid, text)                  // any connected session
-await wa.sendMessageFromSession(accountId, sessionId, jid, text)
-
-// Status
-wa.getSessions(accountId)                                    // array of session info
-wa.getSessionStatus(accountId, sessionId)
-await wa.getQRDataUrl(accountId, sessionId)                  // PNG data URL or null
-
-// Startup
-wa.restoreSessions()                                         // reconnect saved sessions
-
-// Events
-wa.on('message',      (msg) => { ... })     // { accountId, sessionId, jid, from, text, timestamp, raw }
-wa.on('connected',    ({ accountId, sessionId, phone }) => { ... })
-wa.on('disconnected', ({ accountId, sessionId, reason }) => { ... })
-wa.off(event, fn)
+```bash
+npm install
 ```
 
-### Express route handlers (ready to mount)
-```js
-app.get   ('/wa/sessions/:accountId',            wa.handlers.getSessions)
-app.get   ('/wa/status/:accountId/:sessionId',   wa.handlers.getStatus)
-app.post  ('/wa/connect/qr',                     wa.handlers.connectQR)
-app.post  ('/wa/connect/pairing',                wa.handlers.connectPairing)
-app.delete('/wa/sessions/:accountId/:sessionId', wa.handlers.disconnect)
-app.post  ('/wa/send',                           wa.handlers.send)
+### 2. Variables de entorno (opcionales)
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `PORT` | Puerto del servidor | `5000` |
+| `ADMIN_PASSWORD` | Contraseña del panel admin | `ortizuwu20` |
+
+### 3. Arrancar
+
+```bash
+node server.js
 ```
 
-## REST API
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/wa/sessions/:accountId` | List all sessions for an account |
-| GET | `/wa/status/:accountId/:sessionId` | Session status + QR data URL |
-| POST | `/wa/connect/qr` | Start QR connection |
-| POST | `/wa/connect/pairing` | Start pairing-code connection |
-| DELETE | `/wa/sessions/:accountId/:sessionId` | Disconnect & delete session |
-| POST | `/wa/send` | Send a text message |
-| GET | `/wa/messages` | In-memory message log (demo only) |
+El servidor arranca en `http://0.0.0.0:5000` y reconecta automáticamente cualquier sesión de WhatsApp guardada.
 
-## Key Design Decisions
-- **accountId** groups multiple sessions — one account can have many WhatsApp numbers
-- **Sessions persist** in `sessions/` folder; `restoreSessions()` reconnects them on startup
-- **Auto-reconnect**: on unexpected disconnection, automatically retries after 5 seconds
-- **QR timeout**: 120 seconds — session is cleaned up if not scanned in time
-- **Pairing timeout**: 30 seconds to receive response from WhatsApp, 120 seconds total
-- **EventEmitter**: `wa.on('message', fn)` is the hook to add any business logic (AI, DB, etc.)
+---
 
-## Dependencies
-- `@whiskeysockets/baileys` — WhatsApp Web protocol
-- `@hapi/boom` — error handling for Baileys
-- `express` — HTTP server
-- `qrcode` — QR code PNG generation
-- `pino` — logger (set to silent in production socket)
-- `cors`, `dotenv`
+## Cómo funciona el bot
 
-## Port
-Server runs on port `5000` (configurable via `PORT` env var).
+### Flujo de un mensaje entrante
+
+```
+WhatsApp (mensaje) 
+  → Baileys (websocket)
+    → whatsapp.js (messages.upsert)
+      → ai.js (generateAIResponse)
+        ├── Modo Manual:
+        │     1. ¿Hay un flujo de conversación activo para este contacto? → continúa el flujo
+        │     2. ¿El mensaje activa un nuevo flujo? → inicia el flujo
+        │     3. ¿Coincide con una palabra clave? → responde
+        │     4. Sin coincidencia → no responde
+        └── Modo IA:
+              → Google Gemini con prompt + catálogo de productos
+```
+
+### Reconexión automática
+
+Al reiniciar el servidor, todas las sesiones guardadas en `data/auth_*/` se reconectan automáticamente sin necesidad de escanear el QR de nuevo.
+
+---
+
+## API endpoints
+
+### Autenticación de usuarios
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/login` | Inicia sesión |
+| POST | `/api/register` | Crea una cuenta nueva |
+
+### Datos del bot
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/data/:userId` | Obtiene configuración del bot |
+| POST | `/api/data/:userId` | Guarda configuración del bot |
+
+### WhatsApp
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/init-bot` | Inicia sesión por QR |
+| GET | `/api/qr/:userId/:sessionId` | Obtiene estado del QR |
+| POST | `/api/request-pairing-code` | Genera código de emparejamiento por número |
+| GET | `/api/devices/:userId` | Lista dispositivos conectados |
+| DELETE | `/api/devices/:userId/:sessionId` | Desconecta un dispositivo |
+
+### Admin (requiere token)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/admin-api/login` | Login del admin |
+| GET | `/admin-api/ls` | Lista un directorio |
+| GET | `/admin-api/read` | Lee un archivo |
+| POST | `/admin-api/write` | Escribe/crea un archivo |
+| DELETE | `/admin-api/delete` | Elimina archivo o carpeta |
+| POST | `/admin-api/mkdir` | Crea un directorio |
+| POST | `/admin-api/rename` | Renombra/mueve un archivo |
+
+---
+
+## Panel de usuario — secciones
+
+### Productos
+Agrega el catálogo de productos que el bot de IA conocerá y podrá ofrecer a los clientes.
+
+### Inteligencia Artificial
+- **Modo del bot**: IA (Gemini) o Solo reglas manuales
+- **Modelo de IA**: escribe el nombre del modelo de Gemini (por defecto: `gemini-2.5-flash`)
+- **API Key**: clave de Google AI Studio
+- **Personalidad**: prompt base que define el carácter del bot
+- **Contexto extra**: instrucciones adicionales (ej: no dar descuentos mayores al 10%)
+
+### Automatización
+
+#### Palabras Clave
+Respuestas simples disparadas por una palabra clave. Útil para FAQs básicas.
+
+#### Flujos de Conversación
+Sistema de conversación ramificada. Cada flujo tiene:
+- **Trigger**: palabra que lo activa
+- **Pasos**: secuencia de mensajes
+- **Ramas**: según lo que responda el usuario, el flujo toma distintos caminos
+- **Default**: si ninguna rama coincide, avanza a un paso específico o termina
+
+Ejemplo de flujo:
+```
+Trigger: "hola"
+
+Paso 0: "¡Hola! ¿En qué te ayudo?
+         1. Ver productos
+         2. Precios
+         3. Soporte"
+
+  → Si dice "1" o "productos" → Paso 1
+  → Si dice "2" o "precios"   → Paso 2
+  → Si dice "3" o "soporte"   → Paso 3
+  → Si no coincide nada       → repetir Paso 0
+
+Paso 1: "Nuestros productos son..."
+Paso 2: "Los precios van desde..."
+Paso 3: "Para soporte escríbenos a..."
+```
+
+### WhatsApp
+Conecta y administra múltiples números de WhatsApp (normal y Business).
+- Vinculación por QR con temporizador visual
+- Vinculación por número de teléfono (código de 8 dígitos)
+- Lista de dispositivos con estado en tiempo real
+
+---
+
+## Panel de administración
+
+Accesible en `/admin`. Requiere la contraseña configurada en `ADMIN_PASSWORD`.
+
+- Explorador de archivos completo (crear, editar, renombrar, eliminar archivos y carpetas)
+- Totalmente responsivo (móvil y escritorio)
+- Editor de código con soporte Ctrl+S
+
+---
+
+## Notas de seguridad
+
+- Las contraseñas se guardan en texto plano — se recomienda implementar hashing con bcrypt en producción
+- Las API Keys de Gemini se almacenan en archivos JSON del servidor — considerar encriptación en producción
+- El almacenamiento en JSON es adecuado para pocos usuarios; para escalar se recomienda una base de datos
+- Implementar rate limiting en los endpoints de login/registro para producción
+
+---
+
+## Soporte
+
+pagina:wibc.oneapp.dev
+
+Contacto: +591 64770568

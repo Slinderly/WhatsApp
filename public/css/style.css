@@ -236,3 +236,87 @@ textarea { resize: vertical; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── AI SETTINGS ─────────────────────────────────────────────────────────── */
+.ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 800px) { .ai-grid { grid-template-columns: 1fr; } }
+
+.ai-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2); border-radius: 8px; padding: 12px 14px;
+}
+
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--border); border-radius: 24px; transition: .2s;
+}
+.toggle-slider:before {
+  position: absolute; content: ""; height: 18px; width: 18px;
+  left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s;
+}
+input:checked + .toggle-slider { background: var(--accent); }
+input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+.ai-status-box {
+  background: var(--bg); border-radius: 8px; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ai-stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: .85rem; padding: 4px 0; border-bottom: 1px solid var(--border);
+}
+.ai-stat-row:last-child { border-bottom: none; }
+.stat-ok   { color: var(--accent); font-weight: 600; }
+.stat-warn { color: #f5a623; font-weight: 600; }
+
+/* ── GROUPS ──────────────────────────────────────────────────────────────── */
+.groups-layout { display: grid; grid-template-columns: 260px 1fr; gap: 20px; }
+@media (max-width: 800px) { .groups-layout { grid-template-columns: 1fr; } }
+
+.groups-panel { max-height: calc(100vh - 200px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.groups-right { display: flex; flex-direction: column; gap: 16px; }
+
+.groups-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.group-item {
+  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid transparent; transition: all .15s;
+}
+.group-item:hover { background: var(--surface2); border-color: var(--border); }
+.group-item.selected { background: rgba(37,211,102,.1); border-color: var(--accent); }
+.group-name { font-size: .88rem; font-weight: 600; }
+.group-sub  { font-size: .76rem; color: var(--text-sub); }
+
+.members-list { max-height: 200px; overflow-y: auto; }
+.members-header { font-size: .78rem; color: var(--text-sub); margin-bottom: 10px; font-weight: 600; }
+.members-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.member-chip {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 10px; display: flex; align-items: center; gap: 6px;
+}
+.member-phone { font-size: .78rem; font-family: monospace; }
+
+/* ── BROADCAST PROGRESS ──────────────────────────────────────────────────── */
+.progress-stats { display: flex; gap: 16px; font-size: .82rem; margin-bottom: 10px; flex-wrap: wrap; }
+.progress-bar-wrap { background: var(--surface2); border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 6px; }
+.progress-bar { height: 100%; background: var(--accent); border-radius: 6px; transition: width .4s; }
+.progress-label { font-size: .8rem; color: var(--text-sub); margin-bottom: 10px; }
+
+.broadcast-log {
+  background: var(--bg); border-radius: 7px; padding: 10px;
+  max-height: 200px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 3px;
+  margin-top: 8px;
+}
+.log-line { font-size: .77rem; font-family: monospace; }
+.log-line.enviado { color: var(--accent); }
+.log-line.error   { color: var(--danger); }
+.log-line.detenido { color: var(--text-sub); }
+
+/* ── MESSAGE DIR BADGE ───────────────────────────────────────────────────── */
+.msg-dir-badge {
+  font-size: .68rem; font-weight: 800; padding: 1px 6px;
+  border-radius: 4px; vertical-align: middle; margin-right: 3px;
+}
+.msg-dir-badge.out { background: rgba(79,142,247,.2); color: var(--blue); }
