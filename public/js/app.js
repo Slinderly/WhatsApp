@@ -408,10 +408,9 @@
         const message = document.getElementById('broadcastMsg').value.trim();
         if (!message) { toast('Escribe el mensaje de difusión', 'error'); return; }
 
-        const delayMs   = Number(document.getElementById('broadcastDelay').value) * 1000;
         const resetSent = document.getElementById('resetSent').checked;
 
-        setStatus('broadcastStatus', 'Iniciando difusión...', 'info');
+        setStatus('broadcastStatus', 'Enviando...', 'info');
         try {
             const res  = await fetch('/wa/broadcast', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -419,7 +418,6 @@
                     accountId: accountId(),
                     groupId:   selectedGroup.id,
                     message,
-                    delayMs,
                     resetSent,
                 })
             });

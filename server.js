@@ -115,7 +115,7 @@ app.get('/wa/groups/:accountId/:groupId/members', async (req, res) => {
 
 // ── Broadcast routes ───────────────────────────────────────────────────────
 app.post('/wa/broadcast', async (req, res) => {
-    const { accountId, groupId, message, delayMs = 6000, resetSent = false } = req.body;
+    const { accountId, groupId, message, resetSent = false } = req.body;
     if (!accountId || !groupId || !message)
         return res.status(400).json({ success: false, message: 'accountId, groupId y message son requeridos' });
 
@@ -149,25 +149,23 @@ app.post('/wa/broadcast', async (req, res) => {
     });
 
     (async () => {
-        for (const member of toSend) {
+        await Promise.all(toSend.map(async (member) => {
             if (broadcast.stopFlag) {
                 broadcast.log.push({ phone: member.phone, status: 'detenido' });
-                break;
+                return;
             }
             try {
                 await wa.sendMessage(accountId, member.jid, message);
                 sentSet.add(member.phone);
-                saveSent(sentSet);
                 broadcast.sent++;
                 broadcast.log.push({ phone: member.phone, status: 'enviado', ts: new Date().toISOString() });
             } catch (err) {
                 broadcast.failed++;
                 broadcast.log.push({ phone: member.phone, status: 'error', error: err.message });
             }
-            if (!broadcast.stopFlag)
-                await new Promise(r => setTimeout(r, Math.max(delayMs, 3000)));
-        }
-        broadcast.running  = false;
+        }));
+        saveSent(sentSet);
+        broadcast.running    = false;
         broadcast.finishedAt = new Date().toISOString();
     })();
 });
