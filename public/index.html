@@ -2,56 +2,69 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WIBC OneApp · Soporte WA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>wibc.ai · Soporte WhatsApp</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
 <div class="layout">
 
-  <!-- ── SIDEBAR ──────────────────────────────────────────────────── -->
+  <!-- ══ SIDEBAR (desktop) ══════════════════════════════════════ -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">WIBC <span class="logo-accent">OneApp</span></span>
-      <small>Soporte WhatsApp · Baileys</small>
+      <div class="logo">wibc<span class="logo-accent">.ai</span></div>
+      <small>Soporte WhatsApp · IA</small>
     </div>
 
     <nav>
-      <button class="nav-btn active" data-tab="connect">Conectar</button>
-      <button class="nav-btn" data-tab="ai">IA &amp; Soporte</button>
-      <button class="nav-btn" data-tab="groups">Grupos</button>
-      <button class="nav-btn" data-tab="send">Enviar mensaje</button>
-      <button class="nav-btn" data-tab="messages">Mensajes</button>
-      <button class="nav-btn" data-tab="docs">API Docs</button>
+      <button class="nav-btn active" data-tab="connect">
+        <span class="nav-icon">📱</span> Conectar
+      </button>
+      <button class="nav-btn" data-tab="ai">
+        <span class="nav-icon">🤖</span> IA & Soporte
+      </button>
+      <button class="nav-btn" data-tab="groups">
+        <span class="nav-icon">👥</span> Grupos
+      </button>
+      <button class="nav-btn" data-tab="send">
+        <span class="nav-icon">💬</span> Mensaje
+      </button>
+      <button class="nav-btn" data-tab="messages">
+        <span class="nav-icon">📩</span> Mensajes
+      </button>
+      <button class="nav-btn" data-tab="docs">
+        <span class="nav-icon">📖</span> API Docs
+      </button>
     </nav>
 
     <div class="account-box">
       <label>Account ID</label>
       <input id="accountId" type="text" value="cuenta1" placeholder="mi-cuenta">
-      <small>Identifica a qué cuenta pertenecen las sesiones</small>
+      <small>Identifica tu cuenta de sesiones</small>
     </div>
   </aside>
 
-  <!-- ── MAIN ─────────────────────────────────────────────────────── -->
+  <!-- ══ MAIN ═══════════════════════════════════════════════════ -->
   <main class="main">
 
-    <!-- ══ TAB: CONECTAR ══ -->
+    <!-- ── TAB: CONECTAR ─────────────────────────────────────── -->
     <section class="tab active" id="tab-connect">
       <div class="tab-header">
         <h1>Conectar WhatsApp</h1>
-        <p>Vincula una o más sesiones a tu cuenta</p>
+        <p>Vincula tu número para activar el soporte automático</p>
       </div>
 
       <div class="sessions-bar">
         <h2>Sesiones activas</h2>
-        <button class="btn btn-ghost" onclick="refreshSessions()">↻ Actualizar</button>
+        <button class="btn btn-ghost btn-sm" onclick="refreshSessions()">↻ Actualizar</button>
       </div>
       <div id="sessionsList" class="sessions-list">
         <div class="empty">Sin sesiones aún</div>
       </div>
 
       <div class="connect-cards">
+
         <div class="card">
           <div class="card-title">
             <span class="badge badge-blue">QR</span>
@@ -59,7 +72,7 @@
           </div>
           <p class="card-desc">Escanea desde WhatsApp → Ajustes → Dispositivos vinculados</p>
           <div id="qrBox" class="qr-box">
-            <span>Presiona generar para ver el QR</span>
+            <span>Presiona Generar QR</span>
           </div>
           <div class="card-status" id="qrStatus"></div>
           <button class="btn btn-primary" onclick="startQR()">Generar QR</button>
@@ -70,7 +83,7 @@
             <span class="badge badge-green">CÓDIGO</span>
             Código de emparejamiento
           </div>
-          <p class="card-desc">Vincula sin escanear — WhatsApp → Ajustes → Dispositivos vinculados → Vincular con código</p>
+          <p class="card-desc">WhatsApp → Ajustes → Dispositivos vinculados → Vincular con código</p>
           <div class="form-group">
             <label>Número de teléfono</label>
             <input id="pairPhone" type="tel" placeholder="+1234567890" style="width:100%">
@@ -79,143 +92,142 @@
           <div class="card-status" id="pairStatus"></div>
           <button class="btn btn-primary" onclick="startPairing()">Obtener código</button>
         </div>
+
       </div>
     </section>
 
-    <!-- ══ TAB: IA & SOPORTE ══ -->
+    <!-- ── TAB: IA & SOPORTE ─────────────────────────────────── -->
     <section class="tab" id="tab-ai">
       <div class="tab-header">
-        <h1>IA &amp; Soporte Automático</h1>
-        <p>Configura Groq para responder mensajes automáticamente como soporte de wibc.oneapp.dev</p>
+        <h1>IA &amp; Soporte</h1>
+        <p>Groq responde automáticamente como soporte de wibc.ai</p>
       </div>
 
       <div class="ai-grid">
 
-        <!-- API Key & activación -->
         <div class="card">
           <div class="card-title">
-            <span class="badge badge-blue">GROQ</span>
-            Configuración de API
+            <span class="badge badge-black">GROQ</span>
+            API &amp; Activación
           </div>
+
           <div class="form-group">
             <label>API Key de Groq</label>
             <div style="display:flex;gap:8px">
               <input id="groqApiKey" type="password" placeholder="gsk_..." style="flex:1">
-              <button class="btn btn-ghost" onclick="toggleKeyVisibility()">👁</button>
+              <button class="btn btn-ghost btn-sm" onclick="toggleKeyVisibility()" style="padding:10px 13px">👁</button>
             </div>
-            <small>Obtén tu clave en <a href="https://console.groq.com" target="_blank" style="color:var(--accent)">console.groq.com</a> — es gratis</small>
+            <small>Gratis en <a href="https://console.groq.com" target="_blank">console.groq.com</a></small>
           </div>
+
           <div class="form-group">
             <label>Modelo</label>
             <select id="aiModel"></select>
           </div>
+
           <div class="ai-toggle-row">
             <div>
-              <div style="font-weight:600;font-size:.9rem">IA activa</div>
-              <div style="font-size:.78rem;color:var(--text-sub)">Responde automáticamente mensajes privados</div>
+              <div class="ai-toggle-label">IA activa</div>
+              <div class="ai-toggle-sub">Responde mensajes privados automáticamente</div>
             </div>
             <label class="toggle">
               <input type="checkbox" id="aiEnabled" onchange="saveAiSettings()">
               <span class="toggle-slider"></span>
             </label>
           </div>
-          <div id="aiKeyStatus" class="card-status"></div>
+
+          <div class="card-status" id="aiKeyStatus"></div>
           <button class="btn btn-primary" onclick="saveAiSettings()">Guardar configuración</button>
         </div>
 
-        <!-- Prompt -->
         <div class="card">
           <div class="card-title">
-            <span class="badge badge-green">PROMPT</span>
+            <span class="badge badge-gray">PROMPT</span>
             Prompt del sistema
           </div>
-          <p class="card-desc">Define cómo se comporta el asistente. Incluye info de tu app, tono, idioma y límites.</p>
+          <p class="card-desc">Define el comportamiento del asistente. Ya incluye toda la info de wibc.ai.</p>
           <div class="form-group">
-            <textarea id="aiSystemPrompt" rows="12" placeholder="Eres el soporte de..."></textarea>
+            <textarea id="aiSystemPrompt" rows="10" placeholder="Eres el soporte de..."></textarea>
           </div>
           <div class="form-group">
-            <label>Historial de conversación (mensajes)</label>
+            <label>Historial por usuario (mensajes)</label>
             <input id="aiMaxHistory" type="number" value="10" min="2" max="40">
-            <small>Cuántos mensajes previos recuerda por conversación</small>
+            <small>Cada usuario tiene su propio historial separado — nunca se mezclan</small>
           </div>
           <button class="btn btn-primary" onclick="saveAiSettings()">Guardar prompt</button>
         </div>
 
       </div>
 
-      <!-- Estado en tiempo real -->
-      <div class="card" style="margin-top:20px">
-        <div class="card-title">Estado de la IA</div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">Estado en tiempo real</div>
         <div id="aiStatusBox" class="ai-status-box">
-          <div class="empty">Carga la configuración para ver el estado</div>
+          <div class="empty">Cargando...</div>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="loadAiSettings()">↻ Actualizar estado</button>
       </div>
     </section>
 
-    <!-- ══ TAB: GRUPOS ══ -->
+    <!-- ── TAB: GRUPOS ───────────────────────────────────────── -->
     <section class="tab" id="tab-groups">
       <div class="tab-header">
         <h1>Grupos &amp; Difusión</h1>
-        <p>Extrae los miembros de tus grupos y envíales un mensaje privado con control anti-spam</p>
+        <p>Extrae miembros y envíales un mensaje privado sin spam</p>
       </div>
 
       <div class="groups-layout">
 
-        <!-- Panel izquierdo: lista de grupos -->
         <div class="card groups-panel">
           <div class="card-title">Mis grupos</div>
-          <button class="btn btn-ghost btn-sm" onclick="loadGroups()" style="width:100%">↻ Cargar grupos</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadGroups()" style="width:100%;justify-content:center">
+            ↻ Cargar grupos
+          </button>
           <div id="groupsList" class="groups-list">
-            <div class="empty">Presiona "Cargar grupos" para ver la lista</div>
+            <div class="empty">Presiona "Cargar grupos"</div>
           </div>
         </div>
 
-        <!-- Panel derecho: difusión -->
         <div class="groups-right">
 
           <div class="card">
             <div class="card-title">
-              <span class="badge badge-green">GRUPO SELECCIONADO</span>
-              <span id="selectedGroupName" style="color:var(--text-sub);font-weight:400">Ninguno</span>
+              <span class="badge badge-gray">SELECCIONADO</span>
+              <span id="selectedGroupName" style="color:var(--sub);font-weight:500">Ninguno</span>
             </div>
             <div id="membersPreview" class="members-list">
-              <div class="empty">Selecciona un grupo de la lista</div>
+              <div class="empty">Selecciona un grupo</div>
             </div>
           </div>
 
           <div class="card">
             <div class="card-title">
-              <span class="badge badge-blue">DIFUSIÓN</span>
-              Enviar mensaje a miembros
+              <span class="badge badge-black">DIFUSIÓN</span>
+              Enviar a miembros
             </div>
-            <p class="card-desc">Se enviará un mensaje privado a cada miembro. <strong>Nunca se repite al mismo número</strong> a menos que limpies el registro.</p>
+            <p class="card-desc">Mensaje privado a cada miembro. <strong>No se repite al mismo número</strong> salvo que limpies el registro.</p>
             <div class="form-group">
               <label>Mensaje</label>
-              <textarea id="broadcastMsg" rows="4" placeholder="Hola! Te escribo desde WIBC OneApp..."></textarea>
+              <textarea id="broadcastMsg" rows="4" placeholder="Hola! Te escribimos desde wibc.ai..."></textarea>
             </div>
             <div class="form-group">
               <label>Delay entre mensajes (segundos)</label>
-              <input id="broadcastDelay" type="number" value="6" min="3" max="60">
-              <small>Mínimo 3 segundos para evitar bloqueos. Recomendado: 6-10 segundos.</small>
+              <input id="broadcastDelay" type="number" value="6" min="3" max="120">
+              <small>Mínimo 3 seg. Recomendado 6–10 para evitar bloqueos.</small>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <label style="display:flex;gap:6px;align-items:center;font-size:.83rem;color:var(--text-sub)">
-                <input type="checkbox" id="resetSent"> Re-enviar a los ya contactados
-              </label>
-            </div>
-            <div id="broadcastStatus" class="card-status"></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-primary" onclick="startBroadcast()">▶ Iniciar difusión</button>
+            <label style="display:flex;gap:8px;align-items:center;font-size:.83rem;color:var(--sub);cursor:pointer">
+              <input type="checkbox" id="resetSent"> Re-contactar a los ya enviados
+            </label>
+            <div class="card-status" id="broadcastStatus"></div>
+            <div class="pill-row">
+              <button class="btn btn-primary" onclick="startBroadcast()">▶ Iniciar</button>
               <button class="btn btn-ghost" onclick="stopBroadcast()">◼ Detener</button>
-              <button class="btn btn-ghost btn-sm" onclick="resetBroadcast()" style="margin-left:auto;color:var(--danger)">Limpiar registro</button>
+              <button class="btn btn-ghost btn-sm" onclick="resetBroadcast()" style="color:var(--red);margin-left:auto">Limpiar registro</button>
             </div>
           </div>
 
-          <!-- Progreso -->
           <div class="card">
-            <div class="card-title">Progreso de difusión</div>
-            <div id="broadcastProgress" class="broadcast-progress">
+            <div class="card-title">Progreso</div>
+            <div id="broadcastProgress">
               <div class="empty">Sin difusión activa</div>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="pollBroadcastStatus()">↻ Actualizar</button>
@@ -225,77 +237,61 @@
       </div>
     </section>
 
-    <!-- ══ TAB: ENVIAR ══ -->
+    <!-- ── TAB: ENVIAR ───────────────────────────────────────── -->
     <section class="tab" id="tab-send">
       <div class="tab-header">
         <h1>Enviar mensaje</h1>
-        <p>Envía un mensaje a cualquier número desde la cuenta activa</p>
+        <p>Envía un mensaje desde la sesión activa</p>
       </div>
-
       <div class="card" style="max-width:520px">
         <div class="form-group">
           <label>Número destino (JID)</label>
           <input id="sendJid" type="text" placeholder="5219991234567@s.whatsapp.net">
-          <small>Formato: <code>número@s.whatsapp.net</code> · grupos: <code>id@g.us</code></small>
+          <small><code>número@s.whatsapp.net</code> · grupos: <code>id@g.us</code></small>
         </div>
         <div class="form-group">
           <label>Mensaje</label>
-          <textarea id="sendText" rows="4" placeholder="Hola, ¿cómo estás?"></textarea>
+          <textarea id="sendText" rows="4" placeholder="Hola! 👋"></textarea>
         </div>
-        <div id="sendStatus" class="card-status"></div>
-        <button class="btn btn-primary" onclick="sendMsg()">Enviar →</button>
+        <div class="card-status" id="sendStatus"></div>
+        <button class="btn btn-primary" onclick="sendMsg()">Enviar mensaje →</button>
       </div>
     </section>
 
-    <!-- ══ TAB: MENSAJES ══ -->
+    <!-- ── TAB: MENSAJES ─────────────────────────────────────── -->
     <section class="tab" id="tab-messages">
       <div class="tab-header">
-        <h1>Mensajes recibidos</h1>
-        <p>Historial en tiempo real — se actualiza cada 2 segundos</p>
+        <h1>Mensajes</h1>
+        <p>Historial en tiempo real — actualización cada 2 seg</p>
       </div>
       <div class="toolbar">
-        <label style="font-size:.83rem;color:var(--text-sub)">
+        <label style="display:flex;gap:6px;align-items:center;font-size:.82rem;color:var(--sub);cursor:pointer">
           <input type="checkbox" id="autoScroll" checked> Auto-scroll
         </label>
-        <button class="btn btn-ghost" onclick="clearMsgLog()">Limpiar vista</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearMsgLog()">Limpiar</button>
       </div>
       <div id="messageLog" class="message-log">
-        <div class="empty">Sin mensajes aún. Conecta una sesión y espera mensajes.</div>
+        <div class="empty">Sin mensajes. Conecta una sesión y espera.</div>
       </div>
     </section>
 
-    <!-- ══ TAB: DOCS ══ -->
+    <!-- ── TAB: DOCS ─────────────────────────────────────────── -->
     <section class="tab" id="tab-docs">
       <div class="tab-header">
         <h1>API Reference</h1>
-        <p>Endpoints disponibles para integrarlo en tu proyecto</p>
+        <p>Endpoints REST disponibles</p>
       </div>
-
       <div class="docs">
 
         <div class="doc-group">
           <h2>Sesiones</h2>
           <div class="endpoint">
             <div class="ep-header"><span class="method get">GET</span><code>/wa/sessions/:accountId</code></div>
-            <p>Lista todas las sesiones de una cuenta con su estado y dispositivo.</p>
+            <p>Lista sesiones con estado y dispositivo.</p>
           </div>
           <div class="endpoint">
             <div class="ep-header"><span class="method get">GET</span><code>/wa/status/:accountId/:sessionId</code></div>
-            <p>Estado de una sesión. Si hay QR disponible lo devuelve como data URL.</p>
-          </div>
-        </div>
-
-        <div class="doc-group">
-          <h2>Conectar</h2>
-          <div class="endpoint">
-            <div class="ep-header"><span class="method post">POST</span><code>/wa/connect/qr</code></div>
-            <p>Inicia sesión con flujo QR.</p>
-            <pre>{ "accountId": "cuenta1", "sessionId": "opcional" }</pre>
-          </div>
-          <div class="endpoint">
-            <div class="ep-header"><span class="method post">POST</span><code>/wa/connect/pairing</code></div>
-            <p>Inicia sesión con código de emparejamiento.</p>
-            <pre>{ "accountId": "cuenta1", "phoneNumber": "+5219991234567" }</pre>
+            <p>Estado + QR como data URL si está disponible.</p>
           </div>
           <div class="endpoint">
             <div class="ep-header"><span class="method delete">DELETE</span><code>/wa/sessions/:accountId/:sessionId</code></div>
@@ -304,45 +300,50 @@
         </div>
 
         <div class="doc-group">
+          <h2>Conectar</h2>
+          <div class="endpoint">
+            <div class="ep-header"><span class="method post">POST</span><code>/wa/connect/qr</code></div>
+            <pre>{ "accountId": "cuenta1" }</pre>
+          </div>
+          <div class="endpoint">
+            <div class="ep-header"><span class="method post">POST</span><code>/wa/connect/pairing</code></div>
+            <pre>{ "accountId": "cuenta1", "phoneNumber": "+521234567890" }</pre>
+          </div>
+        </div>
+
+        <div class="doc-group">
           <h2>Mensajes</h2>
           <div class="endpoint">
             <div class="ep-header"><span class="method post">POST</span><code>/wa/send</code></div>
-            <p>Envía un mensaje de texto.</p>
             <pre>{ "accountId": "cuenta1", "jid": "521234@s.whatsapp.net", "text": "Hola!" }</pre>
           </div>
           <div class="endpoint">
-            <div class="ep-header"><span class="method get">GET</span><code>/wa/messages?accountId=cuenta1&amp;limit=50</code></div>
-            <p>Log de mensajes recibidos en memoria.</p>
+            <div class="ep-header"><span class="method get">GET</span><code>/wa/messages?accountId=cuenta1</code></div>
+            <p>Log de mensajes en memoria.</p>
           </div>
         </div>
 
         <div class="doc-group">
-          <h2>Grupos</h2>
+          <h2>Grupos &amp; Difusión</h2>
           <div class="endpoint">
             <div class="ep-header"><span class="method get">GET</span><code>/wa/groups/:accountId</code></div>
-            <p>Lista todos los grupos en los que está la sesión.</p>
-            <pre>{ "groups": [{ "id": "123@g.us", "name": "Grupo", "participants": 42 }] }</pre>
+            <p>Lista grupos de la cuenta.</p>
           </div>
           <div class="endpoint">
             <div class="ep-header"><span class="method get">GET</span><code>/wa/groups/:accountId/:groupId/members</code></div>
-            <p>Lista todos los miembros de un grupo (excluye tu propio número).</p>
+            <p>Miembros del grupo (excluye tu número).</p>
           </div>
-        </div>
-
-        <div class="doc-group">
-          <h2>Difusión</h2>
           <div class="endpoint">
             <div class="ep-header"><span class="method post">POST</span><code>/wa/broadcast</code></div>
-            <p>Inicia una difusión privada a los miembros de un grupo.</p>
             <pre>{ "accountId": "cuenta1", "groupId": "123@g.us", "message": "Hola!", "delayMs": 6000 }</pre>
           </div>
           <div class="endpoint">
             <div class="ep-header"><span class="method get">GET</span><code>/wa/broadcast/status</code></div>
-            <p>Estado actual de la difusión en curso.</p>
+            <p>Estado de la difusión en curso.</p>
           </div>
           <div class="endpoint">
             <div class="ep-header"><span class="method post">POST</span><code>/wa/broadcast/stop</code></div>
-            <p>Detiene la difusión en curso.</p>
+            <p>Detiene la difusión.</p>
           </div>
         </div>
 
@@ -350,11 +351,11 @@
           <h2>IA</h2>
           <div class="endpoint">
             <div class="ep-header"><span class="method get">GET</span><code>/ai/settings</code></div>
-            <p>Obtiene la configuración actual de la IA.</p>
+            <p>Config actual de la IA.</p>
           </div>
           <div class="endpoint">
             <div class="ep-header"><span class="method post">POST</span><code>/ai/settings</code></div>
-            <p>Actualiza configuración: apiKey, enabled, systemPrompt, model, maxHistory.</p>
+            <pre>{ "apiKey": "gsk_...", "enabled": true, "model": "llama-3.3-70b-versatile", "systemPrompt": "...", "maxHistory": 10 }</pre>
           </div>
         </div>
 
@@ -363,6 +364,32 @@
 
   </main>
 </div>
+
+<!-- ══ BOTTOM NAV (mobile) ═══════════════════════════════════════ -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <button class="bnav-btn active" data-tab="connect">
+      <span class="bnav-icon">📱</span>
+      <span class="bnav-label">Conectar</span>
+    </button>
+    <button class="bnav-btn" data-tab="ai">
+      <span class="bnav-icon">🤖</span>
+      <span class="bnav-label">IA</span>
+    </button>
+    <button class="bnav-btn" data-tab="groups">
+      <span class="bnav-icon">👥</span>
+      <span class="bnav-label">Grupos</span>
+    </button>
+    <button class="bnav-btn" data-tab="messages">
+      <span class="bnav-icon">📩</span>
+      <span class="bnav-label">Mensajes</span>
+    </button>
+    <button class="bnav-btn" data-tab="docs">
+      <span class="bnav-icon">📖</span>
+      <span class="bnav-label">API</span>
+    </button>
+  </div>
+</nav>
 
 <div id="toast" class="toast"></div>
 <script src="/js/app.js"></script>

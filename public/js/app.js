@@ -7,15 +7,19 @@
         setTimeout(() => toastEl.classList.remove('show'), 2800);
     };
 
-    // ── Tab navigation ────────────────────────────────────────────────────
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-            if (btn.dataset.tab === 'ai') loadAiSettings();
-        });
+    // ── Tab navigation (sidebar + bottom nav) ────────────────────────────
+    const switchTab = (tabName) => {
+        document.querySelectorAll('.nav-btn, .bnav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll(`[data-tab="${tabName}"]`).forEach(b => b.classList.add('active'));
+        const tabEl = document.getElementById('tab-' + tabName);
+        if (tabEl) tabEl.classList.add('active');
+        if (tabName === 'ai') loadAiSettings();
+        window.scrollTo(0, 0);
+    };
+
+    document.querySelectorAll('.nav-btn, .bnav-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -268,27 +272,42 @@
     };
 
     const renderAiStatus = (cfg) => {
-        const box = document.getElementById('aiStatusBox');
-        const keyOk    = cfg.hasKey;
-        const enabled  = cfg.enabled;
-        box.innerHTML = `
+        const box    = document.getElementById('aiStatusBox');
+        const keyOk  = cfg.hasKey;
+        const active = cfg.enabled && keyOk;
+        const rows = [
+            {
+                label: 'API Key',
+                value: keyOk ? '✓ Configurada' : '✗ No configurada',
+                cls:   keyOk ? 'stat-ok' : 'stat-warn',
+            },
+            {
+                label: 'Estado IA',
+                value: active ? '✓ Activa · respondiendo' : cfg.enabled ? '⚠ Activa — falta API Key' : '○ Desactivada',
+                cls:   active ? 'stat-ok' : cfg.enabled ? 'stat-warn' : 'stat-off',
+            },
+            {
+                label: 'Modelo',
+                value: cfg.model || '—',
+                cls:   '',
+            },
+            {
+                label: 'Historial / usuario',
+                value: `${cfg.maxHistory} mensajes · ${cfg.activeConversations || 0} conversaciones activas`,
+                cls:   '',
+            },
+            {
+                label: 'Separación de usuarios',
+                value: '✓ Cada número tiene su propio historial',
+                cls:   'stat-ok',
+            },
+        ];
+        box.innerHTML = rows.map(r => `
           <div class="ai-stat-row">
-            <span>API Key</span>
-            <span class="${keyOk ? 'stat-ok' : 'stat-warn'}">${keyOk ? '✓ Configurada' : '✗ No configurada'}</span>
+            <span class="ai-stat-label">${esc(r.label)}</span>
+            <span class="${r.cls}">${esc(r.value)}</span>
           </div>
-          <div class="ai-stat-row">
-            <span>Estado IA</span>
-            <span class="${enabled && keyOk ? 'stat-ok' : 'stat-warn'}">${enabled && keyOk ? '✓ Activa — respondiendo mensajes' : enabled ? '⚠ Activa pero falta API Key' : '○ Desactivada'}</span>
-          </div>
-          <div class="ai-stat-row">
-            <span>Modelo</span>
-            <span>${esc(cfg.model || '—')}</span>
-          </div>
-          <div class="ai-stat-row">
-            <span>Historial</span>
-            <span>${cfg.maxHistory} mensajes por conversación</span>
-          </div>
-        `;
+        `).join('');
     };
 
     window.saveAiSettings = async () => {
