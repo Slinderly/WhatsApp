@@ -1,213 +1,124 @@
 require('dotenv').config();
 const express = require('express');
-const cors    = require('cors');
+const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 const wa      = require('./src/whatsapp');
 const ai      = require('./src/ai');
 
-const app  = express();
-const PORT = process.env.PORT || 5000;
+const app    = express();
+const PORT   = process.env.PORT || 5000;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-
-// ── In-memory message log (demo) ───────────────────────────────────────────
-const messageLog = [];
-const MAX_LOG    = 200;
-
-// ── Broadcast state ────────────────────────────────────────────────────────
-const DATA_DIR    = path.join(__dirname, 'data');
-const SENT_FILE   = path.join(DATA_DIR, 'broadcast_sent.json');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const loadSent = () => {
-    try { return new Set(JSON.parse(fs.readFileSync(SENT_FILE, 'utf8'))); }
-    catch { return new Set(); }
-};
-const saveSent = (set) => {
-    fs.writeFileSync(SENT_FILE, JSON.stringify([...set]));
-};
-
-let broadcast = {
-    running:   false,
-    total:     0,
-    sent:      0,
-    skipped:   0,
-    failed:    0,
-    log:       [],
-    stopFlag:  false,
-};
 
 // ── WA events ─────────────────────────────────────────────────────────────
 wa.on('message', async (msg) => {
-    console.log(`[WA] ${msg.from} (${msg.jid}): ${msg.text}`);
-    messageLog.unshift({ direction: 'in', ...msg });
-    if (messageLog.length > MAX_LOG) messageLog.length = MAX_LOG;
-
+    if (!msg.text || msg.jid.endsWith('@g.us')) return;
     const cfg = ai.getConfig();
-    if (!cfg.enabled || !msg.text) return;
-    if (msg.jid.endsWith('@g.us')) return;
-
+    if (!cfg.enabled) return;
     try {
         const reply = await ai.ask(msg.jid, msg.text);
-        await wa.sendMessage(msg.accountId, msg.jid, reply);
-        messageLog.unshift({
-            direction: 'out',
-            accountId: msg.accountId,
-            sessionId: msg.sessionId,
-            jid:       msg.jid,
-            from:      'IA',
-            text:      reply,
-            timestamp: Date.now(),
-        });
+        await wa.sendText(msg.jid, reply);
     } catch (err) {
-        console.error('[AI] Error al responder:', err.message);
+        console.error('[AI]', err.message);
     }
 });
 
-wa.on('connected', ({ accountId, sessionId, phone }) => {
-    console.log(`[WA] Conectado — cuenta: ${accountId} | sesión: ${sessionId} | tel: ${phone}`);
+wa.on('connected',    (d) => console.log(`[WA] Conectado: ${d.phone}`));
+wa.on('disconnected', (d) => console.log(`[WA] Desconectado: ${d.reason}`));
+
+// ── Status ─────────────────────────────────────────────────────────────────
+app.get('/status', async (_req, res) => {
+    const qr = await wa.getQR();
+    res.json({ status: wa.getStatus(), device: wa.getDevice(), qr });
 });
 
-wa.on('disconnected', ({ accountId, sessionId, reason }) => {
-    console.log(`[WA] Desconectado — cuenta: ${accountId} | sesión: ${sessionId} | razón: ${reason}`);
+// ── Connect QR ─────────────────────────────────────────────────────────────
+app.post('/connect/qr', (_req, res) => {
+    const s = wa.getStatus();
+    if (s !== 'connected') wa.connectQR();
+    res.json({ success: true });
 });
 
-// ── WhatsApp API routes ────────────────────────────────────────────────────
-app.get   ('/wa/sessions/:accountId',            wa.handlers.getSessions);
-app.get   ('/wa/status/:accountId/:sessionId',   wa.handlers.getStatus);
-app.post  ('/wa/connect/qr',                     wa.handlers.connectQR);
-app.post  ('/wa/connect/pairing',                wa.handlers.connectPairing);
-app.delete('/wa/sessions/:accountId/:sessionId', wa.handlers.disconnect);
-app.post  ('/wa/send',                           wa.handlers.send);
-
-app.get('/wa/messages', (req, res) => {
-    const { accountId, limit = 50 } = req.query;
-    const filtered = accountId
-        ? messageLog.filter(m => m.accountId === accountId)
-        : messageLog;
-    res.json({ messages: filtered.slice(0, Number(limit)) });
-});
-
-// ── Groups routes ──────────────────────────────────────────────────────────
-app.get('/wa/groups/:accountId', async (req, res) => {
+// ── Connect pairing ────────────────────────────────────────────────────────
+app.post('/connect/pairing', async (req, res) => {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) return res.status(400).json({ success: false, message: 'phoneNumber requerido' });
     try {
-        const groups = await wa.getGroups(req.params.accountId);
-        res.json({ groups });
+        const code = await wa.connectPairing(phoneNumber);
+        res.json({ success: true, code });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-app.get('/wa/groups/:accountId/:groupId/members', async (req, res) => {
+// ── Disconnect ─────────────────────────────────────────────────────────────
+app.delete('/disconnect', (_req, res) => {
+    wa.disconnect();
+    res.json({ success: true });
+});
+
+// ── Send text ──────────────────────────────────────────────────────────────
+app.post('/send', async (req, res) => {
+    const { jid, text } = req.body;
+    if (!jid || !text) return res.status(400).json({ success: false, message: 'jid y text requeridos' });
     try {
-        const members = await wa.getGroupMembers(
-            req.params.accountId,
-            decodeURIComponent(req.params.groupId)
-        );
-        res.json({ members });
+        await wa.sendText(jid, text);
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// ── Broadcast routes ───────────────────────────────────────────────────────
-app.post('/wa/broadcast', async (req, res) => {
-    const { accountId, groupId, message, resetSent = false } = req.body;
-    if (!accountId || !groupId || !message)
-        return res.status(400).json({ success: false, message: 'accountId, groupId y message son requeridos' });
-
-    if (broadcast.running)
-        return res.status(409).json({ success: false, message: 'Ya hay una difusión en curso' });
-
-    const sentSet = resetSent ? new Set() : loadSent();
-
-    let members;
-    try { members = await wa.getGroupMembers(accountId, groupId); }
-    catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-
-    const toSend = members.filter(m => !sentSet.has(m.phone));
-
-    broadcast = {
-        running:  true,
-        total:    toSend.length,
-        sent:     0,
-        skipped:  members.length - toSend.length,
-        failed:   0,
-        log:      [],
-        stopFlag: false,
-        startedAt: new Date().toISOString(),
-    };
-
-    res.json({
-        success: true,
-        total:   toSend.length,
-        skipped: broadcast.skipped,
-        message: `Iniciando difusión a ${toSend.length} contactos`,
-    });
-
-    (async () => {
-        await Promise.all(toSend.map(async (member) => {
-            if (broadcast.stopFlag) {
-                broadcast.log.push({ phone: member.phone, status: 'detenido' });
-                return;
-            }
-            try {
-                await wa.sendMessage(accountId, member.jid, message);
-                sentSet.add(member.phone);
-                broadcast.sent++;
-                broadcast.log.push({ phone: member.phone, status: 'enviado', ts: new Date().toISOString() });
-            } catch (err) {
-                broadcast.failed++;
-                broadcast.log.push({ phone: member.phone, status: 'error', error: err.message });
-            }
-        }));
-        saveSent(sentSet);
-        broadcast.running    = false;
-        broadcast.finishedAt = new Date().toISOString();
-    })();
+// ── Send image by URL ──────────────────────────────────────────────────────
+app.post('/send/image', async (req, res) => {
+    const { jid, imageUrl, caption = '' } = req.body;
+    if (!jid || !imageUrl) return res.status(400).json({ success: false, message: 'jid e imageUrl requeridos' });
+    try {
+        await wa.sendImage(jid, imageUrl, caption);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
-app.get('/wa/broadcast/status', (_req, res) => {
-    res.json(broadcast);
+// ── Send image upload ──────────────────────────────────────────────────────
+app.post('/send/image/upload', upload.single('image'), async (req, res) => {
+    const { jid, caption = '' } = req.body;
+    if (!jid || !req.file) return res.status(400).json({ success: false, message: 'jid e imagen requeridos' });
+    try {
+        await wa.sendImageBuffer(jid, req.file.buffer, req.file.mimetype, caption);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
-app.post('/wa/broadcast/stop', (_req, res) => {
-    broadcast.stopFlag = true;
-    res.json({ success: true, message: 'Señal de parada enviada' });
-});
-
-app.post('/wa/broadcast/reset', (_req, res) => {
-    if (fs.existsSync(SENT_FILE)) fs.unlinkSync(SENT_FILE);
-    res.json({ success: true, message: 'Registro de enviados limpiado' });
-});
-
-// ── AI settings routes ─────────────────────────────────────────────────────
-app.get('/ai/settings', (_req, res) => {
+// ── Bot config ─────────────────────────────────────────────────────────────
+app.get('/bot/config', (_req, res) => {
     res.json(ai.getConfig());
 });
 
-app.post('/ai/settings', (req, res) => {
-    const { apiKey, enabled, systemPrompt, model, maxHistory } = req.body;
+app.post('/bot/config', (req, res) => {
+    const { apiKey, enabled, model, systemPrompt, maxHistory } = req.body;
     const updates = {};
-    if (apiKey      !== undefined) updates.apiKey      = apiKey;
-    if (enabled     !== undefined) updates.enabled     = enabled;
+    if (apiKey       !== undefined) updates.apiKey       = apiKey;
+    if (enabled      !== undefined) updates.enabled      = enabled;
+    if (model        !== undefined) updates.model        = model;
     if (systemPrompt !== undefined) updates.systemPrompt = systemPrompt;
-    if (model       !== undefined) updates.model       = model;
-    if (maxHistory  !== undefined) updates.maxHistory  = Number(maxHistory);
+    if (maxHistory   !== undefined) updates.maxHistory   = Number(maxHistory);
     ai.setConfig(updates);
     res.json({ success: true, config: ai.getConfig() });
 });
 
-app.get('/ai/models', (_req, res) => {
-    const ai = require('./src/ai');
+app.get('/bot/models', (_req, res) => {
     res.json({ models: ai.getModels() });
 });
 
-// ── Arranque ───────────────────────────────────────────────────────────────
+// ── Start ──────────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[WA Framework] Servidor en http://0.0.0.0:${PORT}`);
-    wa.restoreSessions();
+    console.log(`[wibc.ai] Servidor en http://0.0.0.0:${PORT}`);
+    wa.restoreSession();
 });

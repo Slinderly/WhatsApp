@@ -729,3 +729,117 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 }
 
 select option { background: #fff; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR FOOTER / STATUS DOT
+═══════════════════════════════════════════════════════════════ */
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 20px;
+}
+.status-dot-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background .3s;
+}
+.dot-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--sub);
+}
+.dot-idle         { background: var(--muted); }
+.dot-connecting   { background: #f5a623; animation: pulse 1.2s infinite; }
+.dot-connected    { background: var(--accent); box-shadow: 0 0 0 3px rgba(37,211,102,.18); }
+.dot-disconnected { background: var(--red); }
+.dot-timeout      { background: var(--red); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   POWER BUTTON
+═══════════════════════════════════════════════════════════════ */
+.power-card { position: relative; }
+.power-row  {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.power-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -.3px;
+}
+.power-sub {
+  font-size: .83rem;
+  color: var(--sub);
+  margin-top: 3px;
+}
+.power-btn {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  transition: transform .15s, box-shadow .2s, background .25s;
+  flex-shrink: 0;
+}
+.power-btn:active { transform: scale(.93); }
+.power-btn.off {
+  background: var(--surface2);
+  color: var(--sub);
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+.power-btn.on {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(37,211,102,.38);
+}
+.power-icon { line-height: 1; }
+
+/* ═══════════════════════════════════════════════════════════════
+   DEVICE INFO
+═══════════════════════════════════════════════════════════════ */
+.device-info { display: flex; flex-direction: column; gap: 4px; }
+.device-row  { font-size: .87rem; font-weight: 500; }
+.device-row.sub { color: var(--sub); font-size: .79rem; }
+
+/* ═══════════════════════════════════════════════════════════════
+   CONFIG GRID
+═══════════════════════════════════════════════════════════════ */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 780px) { .config-grid { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════════════════════════════
+   SPINNER
+═══════════════════════════════════════════════════════════════ */
+.spinner {
+  width: 34px; height: 34px;
+  border: 3px solid var(--border);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

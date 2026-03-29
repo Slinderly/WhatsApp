@@ -5,514 +5,258 @@ const {
     fetchLatestBaileysVersion,
     Browsers,
 } = require('@whiskeysockets/baileys');
-const { Boom }   = require('@hapi/boom');
-const pino       = require('pino');
-const path       = require('path');
-const fs         = require('fs');
-const QRCode     = require('qrcode');
+const { Boom }         = require('@hapi/boom');
+const pino             = require('pino');
+const path             = require('path');
+const fs               = require('fs');
+const QRCode           = require('qrcode');
 const { EventEmitter } = require('events');
 
-// ── Event bus — escucha mensajes entrantes desde afuera ───────────────────
 const bus = new EventEmitter();
-bus.setMaxListeners(100);
+bus.setMaxListeners(20);
 
-// ── Estado global — clave = `${accountId}:${sessionId}` ──────────────────
-const sockets       = {};
-const statuses      = {};
-const qrMap         = {};
-const deviceMap     = {};
-const everConn      = {};
-const accountSets   = {};   // accountId -> Set<sessionId>
-const activePairing = {};
+const AUTH_DIR = path.join(__dirname, '../sessions/auth_main');
+if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
-const SESSIONS_DIR = path.join(__dirname, '../sessions');
-if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+let sock       = null;
+let status     = 'idle';      // idle | connecting | connected | disconnected | timeout
+let qrRaw      = null;
+let device     = null;        // { phone, name, connectedAt }
+let everConn   = false;
+let reconnectTimer = null;
 
-const makeKey  = (a, s) => `${a}:${s}`;
-const authDir  = (a, s) => path.join(SESSIONS_DIR, `auth_${a}_${s}`);
-const sleep    = (ms) => new Promise(r => setTimeout(r, ms));
+const clearReconnect = () => { if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; } };
 
-// ── Versión WA — se cachea para no pedir en cada conexión ─────────────────
 let cachedVersion = null;
-const getVersion = async () => {
+const getVersion  = async () => {
     if (cachedVersion) return cachedVersion;
-    try {
-        const { version } = await fetchLatestBaileysVersion();
-        cachedVersion = version;
-    } catch (_) {
-        cachedVersion = [2, 3000, 1015901307];
-    }
+    try { const { version } = await fetchLatestBaileysVersion(); cachedVersion = version; }
+    catch (_) { cachedVersion = [2, 3000, 1015901307]; }
     return cachedVersion;
 };
 
-// ── Matar socket limpiamente ───────────────────────────────────────────────
-const killSocket = (kk, preventReconnect = false) => {
-    if (preventReconnect) everConn[kk] = false;
-    try { if (sockets[kk]) sockets[kk].end(); } catch (_) {}
-    delete sockets[kk];
-    delete qrMap[kk];
+const killSocket = (preventReconnect = false) => {
+    if (preventReconnect) everConn = false;
+    try { if (sock) sock.end(); } catch (_) {}
+    sock   = null;
+    qrRaw  = null;
 };
 
-// ── Crear socket ───────────────────────────────────────────────────────────
-const buildSocket = async (accountId, sessionId) => {
-    const kk     = makeKey(accountId, sessionId);
-    const folder = authDir(accountId, sessionId);
+const buildSocket = async () => {
+    if (sock) killSocket(true);
 
-    if (sockets[kk]) killSocket(kk, true);
+    if (fs.existsSync(AUTH_DIR) && !fs.existsSync(path.join(AUTH_DIR, 'creds.json')))
+        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
-    if (fs.existsSync(folder) && !fs.existsSync(path.join(folder, 'creds.json')))
-        fs.rmSync(folder, { recursive: true, force: true });
-    if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const version              = await getVersion();
 
-    const { state, saveCreds } = await useMultiFileAuthState(folder);
-    const version = await getVersion();
+    status = 'connecting';
 
-    statuses[kk] = 'connecting';
-
-    const sock = makeWASocket({
+    const s = makeWASocket({
         version,
-        auth:                   state,
-        logger:                 pino({ level: 'silent' }),
-        printQRInTerminal:      false,
-        browser:                Browsers.ubuntu('Chrome'),
-        syncFullHistory:        false,
-        connectTimeoutMs:       60_000,
-        defaultQueryTimeoutMs:  0,
+        auth:                  state,
+        logger:                pino({ level: 'silent' }),
+        printQRInTerminal:     false,
+        browser:               Browsers.ubuntu('Chrome'),
+        syncFullHistory:       false,
+        connectTimeoutMs:      60_000,
+        defaultQueryTimeoutMs: 0,
     });
 
-    sockets[kk] = sock;
-    sock.ev.on('creds.update', saveCreds);
+    sock = s;
+    s.ev.on('creds.update', saveCreds);
 
-    // ── Entrante: emitir evento para que el app lo maneje ─────────────────
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        if (sockets[kk] !== sock) return;
-        if (type !== 'notify') return;
-
+    s.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (sock !== s || type !== 'notify') return;
         for (const msg of messages) {
             if (!msg?.message || msg.key.fromMe) continue;
-
             const text =
                 msg.message.conversation ||
                 msg.message.extendedTextMessage?.text ||
                 msg.message.imageMessage?.caption ||
                 msg.message.videoMessage?.caption || '';
-
-            const jid  = msg.key.remoteJid;
-            const from = msg.pushName || jid.split('@')[0];
-
             bus.emit('message', {
-                accountId,
-                sessionId,
-                jid,
-                from,
+                jid:       msg.key.remoteJid,
+                from:      msg.pushName || msg.key.remoteJid.split('@')[0],
                 text,
-                timestamp: msg.messageTimestamp
-                    ? Number(msg.messageTimestamp) * 1000
-                    : Date.now(),
-                raw: msg,
+                timestamp: msg.messageTimestamp ? Number(msg.messageTimestamp) * 1000 : Date.now(),
+                raw:       msg,
             });
         }
     });
 
-    return sock;
+    return s;
 };
 
-// ── Flujo QR ───────────────────────────────────────────────────────────────
-const connectQR = async (accountId, sessionId) => {
-    const kk     = makeKey(accountId, sessionId);
-    const folder = authDir(accountId, sessionId);
-    const isNew  = !fs.existsSync(path.join(folder, 'creds.json'));
-
-    if (!accountSets[accountId]) accountSets[accountId] = new Set();
-    accountSets[accountId].add(sessionId);
-
-    let sock;
-    try { sock = await buildSocket(accountId, sessionId); }
-    catch (_) { statuses[kk] = 'disconnected'; return; }
+// ── Connect via QR ──────────────────────────────────────────────────────────
+const connectQR = async () => {
+    clearReconnect();
+    const isNew = !fs.existsSync(path.join(AUTH_DIR, 'creds.json'));
+    let s;
+    try { s = await buildSocket(); } catch (_) { status = 'disconnected'; return; }
 
     let qrTimer = null;
     if (isNew) {
         qrTimer = setTimeout(() => {
-            if (statuses[kk] !== 'connected') {
-                statuses[kk] = 'timeout';
-                delete qrMap[kk];
-                killSocket(kk, true);
-            }
+            if (status !== 'connected') { status = 'timeout'; qrRaw = null; killSocket(true); }
         }, 120_000);
     }
 
-    sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
-        if (sockets[kk] !== sock) return;
-
-        if (qr) qrMap[kk] = qr;
+    s.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+        if (sock !== s) return;
+        if (qr) qrRaw = qr;
 
         if (connection === 'close') {
             clearTimeout(qrTimer);
-            delete qrMap[kk];
+            qrRaw = null;
             const code = lastDisconnect?.error instanceof Boom
                 ? lastDisconnect.error.output.statusCode
                 : lastDisconnect?.error?.statusCode;
 
             if (code === DisconnectReason.loggedOut) {
-                statuses[kk] = 'disconnected';
-                everConn[kk] = false;
-                delete deviceMap[kk];
-                if (fs.existsSync(folder)) fs.rmSync(folder, { recursive: true, force: true });
-                accountSets[accountId]?.delete(sessionId);
-                bus.emit('disconnected', { accountId, sessionId, reason: 'logged_out' });
-
-            } else if (everConn[kk]) {
-                statuses[kk] = 'disconnected';
-                bus.emit('disconnected', { accountId, sessionId, reason: 'connection_lost' });
-                setTimeout(() => connectQR(accountId, sessionId), 5_000);
-
+                status   = 'disconnected';
+                everConn = false;
+                device   = null;
+                if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+                bus.emit('disconnected', { reason: 'logged_out' });
+            } else if (everConn) {
+                status = 'disconnected';
+                bus.emit('disconnected', { reason: 'connection_lost' });
+                reconnectTimer = setTimeout(() => connectQR(), 5_000);
             } else if (code === DisconnectReason.restartRequired) {
-                statuses[kk] = 'connecting';
-                setTimeout(() => connectQR(accountId, sessionId), 1_500);
-
+                status = 'connecting';
+                reconnectTimer = setTimeout(() => connectQR(), 1_500);
             } else {
-                statuses[kk] = 'disconnected';
+                status = 'disconnected';
             }
-
         } else if (connection === 'open') {
             clearTimeout(qrTimer);
-            delete qrMap[kk];
-            everConn[kk]  = true;
-            statuses[kk]  = 'connected';
-            const me      = sock.authState?.creds?.me;
-            const phone   = me?.id?.split(':')[0]?.split('@')[0] ?? 'Desconocido';
-            deviceMap[kk] = { phone, name: me?.name ?? null, connectedAt: new Date().toISOString() };
-            bus.emit('connected', { accountId, sessionId, phone, name: me?.name ?? null });
+            qrRaw    = null;
+            everConn = true;
+            status   = 'connected';
+            const me = s.authState?.creds?.me;
+            device   = {
+                phone:       me?.id?.split(':')[0]?.split('@')[0] ?? 'Desconocido',
+                name:        me?.name ?? null,
+                connectedAt: new Date().toISOString(),
+            };
+            bus.emit('connected', device);
         }
     });
 };
 
-// ── Flujo Código de Emparejamiento ─────────────────────────────────────────
-const connectPairing = (accountId, sessionId, phoneNumber) => {
-    const kk     = makeKey(accountId, sessionId);
-    const folder = authDir(accountId, sessionId);
+// ── Connect via pairing code ────────────────────────────────────────────────
+const connectPairing = (phoneNumber) => new Promise(async (resolve, reject) => {
+    clearReconnect();
+    if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
 
-    if (activePairing[accountId]) activePairing[accountId].cancel();
+    let codeObtained = false;
+    let cancelled    = false;
+    let aliveTimer, noQRTimer, currentSock;
 
-    if (fs.existsSync(folder)) fs.rmSync(folder, { recursive: true, force: true });
-
-    if (!accountSets[accountId]) accountSets[accountId] = new Set();
-    for (const sid of [...(accountSets[accountId])]) {
-        if (statuses[makeKey(accountId, sid)] !== 'connected')
-            accountSets[accountId].delete(sid);
-    }
-    accountSets[accountId].add(sessionId);
-
-    return new Promise(async (resolve, reject) => {
-        let codeObtained = false;
-        let cancelled    = false;
-        let aliveTimer, noQRTimer;
-        let currentSock  = null;
-
-        const cleanup = () => {
-            clearTimeout(aliveTimer);
-            clearTimeout(noQRTimer);
-            if (currentSock && sockets[kk] === currentSock) killSocket(kk, true);
-            statuses[kk] = 'disconnected';
-            accountSets[accountId]?.delete(sessionId);
-            if (activePairing[accountId]?.sessionId === sessionId) delete activePairing[accountId];
-        };
-
-        aliveTimer = setTimeout(() => {
-            if (statuses[kk] !== 'connected') {
-                cleanup();
-                statuses[kk] = 'timeout';
-                reject(new Error('Tiempo agotado. Solicita un nuevo código.'));
-            }
-        }, 120_000);
-
-        noQRTimer = setTimeout(() => {
-            if (!codeObtained) {
-                cleanup();
-                reject(new Error('Sin respuesta de WhatsApp. Intenta de nuevo.'));
-            }
-        }, 30_000);
-
-        activePairing[accountId] = {
-            sessionId,
-            cancel: () => {
-                if (cancelled) return;
-                cancelled = true;
-                cleanup();
-                reject(new Error('Se inició una nueva solicitud de vinculación.'));
-            },
-        };
-
-        const attachHandler = (sock) => {
-            sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
-                if (cancelled || sockets[kk] !== sock) return;
-
-                if (qr && !codeObtained) {
-                    codeObtained = true;
-                    clearTimeout(noQRTimer);
-                    const clean = phoneNumber.replace(/\D/g, '');
-                    try {
-                        const code = await sock.requestPairingCode(clean);
-                        resolve(code);
-                    } catch (err) { cleanup(); reject(err); }
-                }
-
-                if (connection === 'close') {
-                    const code = lastDisconnect?.error instanceof Boom
-                        ? lastDisconnect.error.output.statusCode
-                        : lastDisconnect?.error?.statusCode;
-
-                    if (code === DisconnectReason.restartRequired && codeObtained && !cancelled) {
-                        statuses[kk] = 'connecting';
-                        try {
-                            const newSock = await buildSocket(accountId, sessionId);
-                            currentSock   = newSock;
-                            attachHandler(newSock);
-                        } catch (err) { cleanup(); reject(err); }
-                        return;
-                    }
-
-                    clearTimeout(aliveTimer);
-                    clearTimeout(noQRTimer);
-                    delete qrMap[kk];
-
-                    if (everConn[kk]) {
-                        statuses[kk] = 'disconnected';
-                        if (activePairing[accountId]?.sessionId === sessionId) delete activePairing[accountId];
-                        setTimeout(() => connectQR(accountId, sessionId), 5_000);
-                    } else {
-                        cleanup();
-                        if (!codeObtained) reject(new Error('Conexión cerrada antes de obtener código.'));
-                    }
-
-                } else if (connection === 'open') {
-                    clearTimeout(aliveTimer);
-                    clearTimeout(noQRTimer);
-                    everConn[kk]  = true;
-                    statuses[kk]  = 'connected';
-                    delete qrMap[kk];
-                    if (activePairing[accountId]?.sessionId === sessionId) delete activePairing[accountId];
-                    const me      = sock.authState?.creds?.me;
-                    const phone   = me?.id?.split(':')[0]?.split('@')[0] ?? phoneNumber;
-                    deviceMap[kk] = { phone, name: me?.name ?? null, connectedAt: new Date().toISOString() };
-                    bus.emit('connected', { accountId, sessionId, phone, name: me?.name ?? null });
-                }
-            });
-        };
-
-        try {
-            currentSock = await buildSocket(accountId, sessionId);
-            attachHandler(currentSock);
-        } catch (err) { cleanup(); reject(err); }
-    });
-};
-
-// ── Desconectar sesión ─────────────────────────────────────────────────────
-const disconnectSession = (accountId, sessionId) => {
-    const kk     = makeKey(accountId, sessionId);
-    const folder = authDir(accountId, sessionId);
-    everConn[kk] = false;
-    killSocket(kk);
-    statuses[kk]  = 'disconnected';
-    delete deviceMap[kk];
-    if (fs.existsSync(folder)) fs.rmSync(folder, { recursive: true, force: true });
-    accountSets[accountId]?.delete(sessionId);
-};
-
-// ── Enviar mensaje ─────────────────────────────────────────────────────────
-const sendMessage = async (accountId, jid, text) => {
-    const sessions = [...(accountSets[accountId] || [])];
-    for (const sessionId of sessions) {
-        const kk = makeKey(accountId, sessionId);
-        if (statuses[kk] === 'connected' && sockets[kk]) {
-            await sockets[kk].sendMessage(jid, { text });
-            return;
-        }
-    }
-    throw new Error('No hay ninguna sesión activa para esta cuenta');
-};
-
-// ── Enviar mensaje por sesión específica ───────────────────────────────────
-const sendMessageFromSession = async (accountId, sessionId, jid, text) => {
-    const kk = makeKey(accountId, sessionId);
-    if (statuses[kk] !== 'connected' || !sockets[kk])
-        throw new Error('Sesión no conectada');
-    await sockets[kk].sendMessage(jid, { text });
-};
-
-// ── Obtener estado de sesiones de una cuenta ───────────────────────────────
-const getSessions = (accountId) => {
-    return [...(accountSets[accountId] || [])].map(sessionId => {
-        const kk = makeKey(accountId, sessionId);
-        return {
-            sessionId,
-            status: statuses[kk] || 'disconnected',
-            device: deviceMap[kk] || null,
-        };
-    });
-};
-
-// ── Obtener estado de una sesión ───────────────────────────────────────────
-const getSessionStatus = (accountId, sessionId) => {
-    const kk = makeKey(accountId, sessionId);
-    return {
-        sessionId,
-        status:  statuses[kk] || 'idle',
-        device:  deviceMap[kk] || null,
-        hasQR:   !!qrMap[kk],
+    const cleanup = () => {
+        clearTimeout(aliveTimer);
+        clearTimeout(noQRTimer);
+        if (currentSock && sock === currentSock) killSocket(true);
+        status = 'disconnected';
     };
+
+    aliveTimer = setTimeout(() => {
+        if (status !== 'connected') { cleanup(); status = 'timeout'; reject(new Error('Tiempo agotado. Solicita un nuevo código.')); }
+    }, 120_000);
+
+    noQRTimer = setTimeout(() => {
+        if (!codeObtained) { cleanup(); reject(new Error('Sin respuesta de WhatsApp. Intenta de nuevo.')); }
+    }, 30_000);
+
+    const attach = (s) => {
+        s.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+            if (cancelled || sock !== s) return;
+            if (qr && !codeObtained) {
+                codeObtained = true;
+                clearTimeout(noQRTimer);
+                try {
+                    const code = await s.requestPairingCode(phoneNumber.replace(/\D/g, ''));
+                    resolve(code);
+                } catch (err) { cleanup(); reject(err); }
+            }
+            if (connection === 'close') {
+                const code = lastDisconnect?.error instanceof Boom
+                    ? lastDisconnect.error.output.statusCode
+                    : lastDisconnect?.error?.statusCode;
+                if (code === DisconnectReason.restartRequired && codeObtained && !cancelled) {
+                    status = 'connecting';
+                    try { currentSock = await buildSocket(); attach(currentSock); } catch (e) { cleanup(); reject(e); }
+                    return;
+                }
+                clearTimeout(aliveTimer); clearTimeout(noQRTimer);
+                if (everConn) {
+                    status = 'disconnected';
+                    reconnectTimer = setTimeout(() => connectQR(), 5_000);
+                } else { cleanup(); if (!codeObtained) reject(new Error('Conexión cerrada antes de obtener código.')); }
+            } else if (connection === 'open') {
+                clearTimeout(aliveTimer); clearTimeout(noQRTimer);
+                everConn = true; status = 'connected'; qrRaw = null;
+                const me = s.authState?.creds?.me;
+                device   = { phone: me?.id?.split(':')[0]?.split('@')[0] ?? phoneNumber, name: me?.name ?? null, connectedAt: new Date().toISOString() };
+                bus.emit('connected', device);
+            }
+        });
+    };
+
+    try { currentSock = await buildSocket(); attach(currentSock); } catch (e) { cleanup(); reject(e); }
+});
+
+// ── Disconnect ──────────────────────────────────────────────────────────────
+const disconnect = () => {
+    clearReconnect();
+    everConn = false;
+    device   = null;
+    status   = 'idle';
+    if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    killSocket(true);
+    if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 };
 
-// ── Obtener QR como data URL ───────────────────────────────────────────────
-const getQRDataUrl = async (accountId, sessionId) => {
-    const kk = makeKey(accountId, sessionId);
-    if (!qrMap[kk]) return null;
-    try {
-        return await QRCode.toDataURL(qrMap[kk], { margin: 1, width: 220 });
-    } catch (_) { return null; }
+// ── Send text ───────────────────────────────────────────────────────────────
+const sendText = async (jid, text) => {
+    if (!sock || status !== 'connected') throw new Error('WhatsApp no conectado');
+    await sock.sendMessage(jid, { text });
 };
 
-// ── Obtener todos los grupos de una cuenta ─────────────────────────────────
-const getGroups = async (accountId) => {
-    const sessions = [...(accountSets[accountId] || [])];
-    for (const sessionId of sessions) {
-        const kk = makeKey(accountId, sessionId);
-        if (statuses[kk] === 'connected' && sockets[kk]) {
-            const raw = await sockets[kk].groupFetchAllParticipating();
-            return Object.values(raw).map(g => ({
-                id: g.id,
-                name: g.subject || g.id,
-                participants: g.participants?.length || 0,
-                desc: g.desc || '',
-            }));
-        }
-    }
-    throw new Error('No hay sesión activa para esta cuenta');
+// ── Send image ──────────────────────────────────────────────────────────────
+const sendImage = async (jid, imageUrl, caption = '') => {
+    if (!sock || status !== 'connected') throw new Error('WhatsApp no conectado');
+    await sock.sendMessage(jid, { image: { url: imageUrl }, caption });
 };
 
-// ── Obtener miembros de un grupo ───────────────────────────────────────────
-const getGroupMembers = async (accountId, groupId) => {
-    const sessions = [...(accountSets[accountId] || [])];
-    for (const sessionId of sessions) {
-        const kk = makeKey(accountId, sessionId);
-        if (statuses[kk] === 'connected' && sockets[kk]) {
-            const meta = await sockets[kk].groupMetadata(groupId);
-            const me   = sockets[kk].authState?.creds?.me?.id?.split(':')[0]?.split('@')[0];
-            return meta.participants
-                .filter(p => {
-                    const num = p.id.split('@')[0];
-                    return num !== me;
-                })
-                .map(p => ({
-                    jid:   p.id,
-                    phone: p.id.split('@')[0],
-                    admin: p.admin || null,
-                }));
-        }
-    }
-    throw new Error('No hay sesión activa para esta cuenta');
+// ── Send image from buffer ──────────────────────────────────────────────────
+const sendImageBuffer = async (jid, buffer, mimetype, caption = '') => {
+    if (!sock || status !== 'connected') throw new Error('WhatsApp no conectado');
+    await sock.sendMessage(jid, { image: buffer, mimetype, caption });
 };
 
-// ── Auto-reconectar sesiones guardadas al iniciar ──────────────────────────
-const restoreSessions = () => {
-    if (!fs.existsSync(SESSIONS_DIR)) return;
-    fs.readdirSync(SESSIONS_DIR).forEach(folder => {
-        if (!folder.startsWith('auth_')) return;
-        if (!fs.existsSync(path.join(SESSIONS_DIR, folder, 'creds.json'))) return;
-        const inner = folder.slice(5);
-        const sep   = inner.indexOf('_');
-        if (sep === -1) return;
-        const accountId = inner.slice(0, sep);
-        const sessionId = inner.slice(sep + 1);
-        connectQR(accountId, sessionId);
-    });
+// ── Get QR as data URL ──────────────────────────────────────────────────────
+const getQR = async () => {
+    if (!qrRaw) return null;
+    try { return await QRCode.toDataURL(qrRaw, { margin: 1, width: 220 }); } catch (_) { return null; }
 };
 
-// ── Express route handlers ─────────────────────────────────────────────────
-const handlers = {
-
-    // GET /wa/sessions/:accountId
-    getSessions: (req, res) => {
-        res.json({ sessions: getSessions(req.params.accountId) });
-    },
-
-    // GET /wa/status/:accountId/:sessionId
-    getStatus: async (req, res) => {
-        const { accountId, sessionId } = req.params;
-        const info   = getSessionStatus(accountId, sessionId);
-        const qrUrl  = info.status !== 'connected' ? await getQRDataUrl(accountId, sessionId) : null;
-        res.json({ ...info, qr: qrUrl });
-    },
-
-    // POST /wa/connect/qr
-    // body: { accountId, sessionId? }
-    connectQR: (req, res) => {
-        const { accountId, sessionId } = req.body;
-        if (!accountId) return res.status(400).json({ success: false, message: 'accountId requerido' });
-        const sid = sessionId || Date.now().toString(36);
-        const kk  = makeKey(accountId, sid);
-        if (!sockets[kk] || statuses[kk] === 'disconnected' || statuses[kk] === 'timeout')
-            connectQR(accountId, sid);
-        res.json({ success: true, sessionId: sid });
-    },
-
-    // POST /wa/connect/pairing
-    // body: { accountId, sessionId?, phoneNumber }
-    connectPairing: async (req, res) => {
-        const { accountId, sessionId, phoneNumber } = req.body;
-        if (!accountId || !phoneNumber)
-            return res.status(400).json({ success: false, message: 'accountId y phoneNumber requeridos' });
-        const sid = sessionId || Date.now().toString(36);
-        try {
-            const code = await connectPairing(accountId, sid, phoneNumber);
-            res.json({ success: true, sessionId: sid, code });
-        } catch (err) {
-            res.status(500).json({ success: false, message: err.message });
-        }
-    },
-
-    // DELETE /wa/sessions/:accountId/:sessionId
-    disconnect: (req, res) => {
-        const { accountId, sessionId } = req.params;
-        disconnectSession(accountId, sessionId);
-        res.json({ success: true });
-    },
-
-    // POST /wa/send
-    // body: { accountId, jid, text, sessionId? }
-    send: async (req, res) => {
-        const { accountId, jid, text, sessionId } = req.body;
-        if (!accountId || !jid || !text)
-            return res.status(400).json({ success: false, message: 'accountId, jid y text requeridos' });
-        try {
-            if (sessionId) await sendMessageFromSession(accountId, sessionId, jid, text);
-            else           await sendMessage(accountId, jid, text);
-            res.json({ success: true });
-        } catch (err) {
-            res.status(500).json({ success: false, message: err.message });
-        }
-    },
+// ── Restore session on startup ──────────────────────────────────────────────
+const restoreSession = () => {
+    if (fs.existsSync(path.join(AUTH_DIR, 'creds.json'))) connectQR();
 };
+
+// ── Public getters ──────────────────────────────────────────────────────────
+const getStatus = () => status;
+const getDevice = () => device;
 
 module.exports = {
-    // Core API
-    connectQR,
-    connectPairing,
-    disconnectSession,
-    sendMessage,
-    sendMessageFromSession,
-    getSessions,
-    getSessionStatus,
-    getQRDataUrl,
-    restoreSessions,
-    getGroups,
-    getGroupMembers,
-
-    // Express route handlers (listos para usar con router.get / router.post)
-    handlers,
-
-    // Event bus
-    // Eventos: 'message', 'connected', 'disconnected'
-    on:  (event, fn) => bus.on(event, fn),
-    off: (event, fn) => bus.off(event, fn),
+    connectQR, connectPairing, disconnect,
+    sendText, sendImage, sendImageBuffer,
+    getQR, getStatus, getDevice, restoreSession,
+    on:  (e, fn) => bus.on(e, fn),
+    off: (e, fn) => bus.off(e, fn),
 };
