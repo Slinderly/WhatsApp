@@ -66,8 +66,26 @@ const randomDelay = () => {
     return Math.floor(Math.random() * (max - min) + min);
 };
 
-const buildMessage = (name) =>
-    prospectConfig.template.replace('{nombre}', name || 'amigo');
+// Strip emojis and non-letter characters, return null if nothing useful remains
+const sanitizeName = (raw) => {
+    if (!raw) return null;
+    // Remove emoji ranges and symbols, keep letters, numbers and spaces
+    const clean = raw
+        .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')  // emoji block
+        .replace(/[\u{2600}-\u{27BF}]/gu, '')     // misc symbols
+        .replace(/[^\p{L}\p{N}\s'-]/gu, '')       // keep letters, numbers, space, hyphen, apostrophe
+        .trim();
+    // Must have at least 2 meaningful characters
+    if (clean.length < 2) return null;
+    // Reject if it's all the same character repeated (e.g. "...", "---")
+    if (/^(.)\1+$/.test(clean)) return null;
+    return clean;
+};
+
+const buildMessage = (rawName) => {
+    const name = sanitizeName(rawName) || 'amigo';
+    return prospectConfig.template.replace('{nombre}', name);
+};
 
 // ── Core: scan groups and fill queue ────────────────────────────────────────
 const scanGroups = async () => {

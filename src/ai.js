@@ -1,5 +1,32 @@
 const Groq = require('groq-sdk');
+const path = require('path');
+const fs   = require('fs');
 
+// ── API key persistence ───────────────────────────────────────────────────────
+const DATA_DIR      = path.join(__dirname, '../data');
+const API_CFG_FILE  = path.join(DATA_DIR, 'api_config.json');
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const loadApiKey = () => {
+    try {
+        const d = JSON.parse(fs.readFileSync(API_CFG_FILE, 'utf8'));
+        return d.groqApiKey || null;
+    } catch { return null; }
+};
+
+const saveApiKey = (key) => {
+    try { fs.writeFileSync(API_CFG_FILE, JSON.stringify({ groqApiKey: key }, null, 2)); }
+    catch (e) { console.error('[AI] Error guardando API key:', e.message); }
+};
+
+// Load persisted key into env on startup
+const persistedKey = loadApiKey();
+if (persistedKey && !process.env.GROQ_API_KEY) {
+    process.env.GROQ_API_KEY = persistedKey;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
 let groqClient = null;
 
 const config = {
@@ -75,7 +102,9 @@ const getClient = () => {
 
 const setConfig = (updates) => {
     if (updates.apiKey !== undefined) {
-        process.env.GROQ_API_KEY = updates.apiKey;
+        const key = updates.apiKey;
+        process.env.GROQ_API_KEY = key;
+        saveApiKey(key);
         groqClient = null;
         delete updates.apiKey;
     }
@@ -88,7 +117,11 @@ const getConfig = () => ({
     activeConversations: Object.keys(conversations).length,
 });
 
-// Build image context string for the system prompt
+// ── Strip <think>…</think> reasoning blocks (Qwen 3 etc.) ────────────────────
+const stripThinking = (text) =>
+    text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+// ── Build image context string for the system prompt ─────────────────────────
 const buildImageContext = (images) => {
     if (!images || images.length === 0) return '';
     const list = images.map(img => `• ID:${img.id} — "${img.label}"`).join('\n');
@@ -101,7 +134,7 @@ Ejemplo: si el cliente pregunta por el catálogo y tienes una imagen etiquetada 
 Si el cliente envía una imagen propia (su foto, captura, etc.), trátala como texto descriptivo de su parte — tú no recibes imágenes del cliente, solo texto.`;
 };
 
-// Parse [IMG:id] tags from the AI response
+// ── Parse [IMG:id] tags from the AI response ─────────────────────────────────
 const parseImageTags = (text) => {
     const imageIds = [];
     const cleaned  = text.replace(/\[IMG:([^\]]+)\]/g, (_match, id) => {
@@ -110,6 +143,9 @@ const parseImageTags = (text) => {
     }).trim();
     return { reply: cleaned, imageIds };
 };
+
+// ── Is the selected model Qwen 3? ────────────────────────────────────────────
+const isQwen3 = (model) => model && model.toLowerCase().includes('qwen3');
 
 const ask = async (jid, userMessage, images = []) => {
     const client = getClient();
@@ -127,14 +163,25 @@ const ask = async (jid, userMessage, images = []) => {
 
     const systemContent = config.systemPrompt + buildImageContext(images);
 
-    const response = await client.chat.completions.create({
+    const params = {
         model:       config.model,
         messages:    [{ role: 'system', content: systemContent }, ...history],
         max_tokens:  512,
         temperature: 0.75,
-    });
+    };
 
-    const raw   = response.choices[0]?.message?.content || 'No pude generar una respuesta.';
+    // Disable thinking mode for Qwen 3 on Groq
+    if (isQwen3(config.model)) {
+        params.reasoning_effort = 'none';
+    }
+
+    const response = await client.chat.completions.create(params);
+
+    let raw = response.choices[0]?.message?.content || 'No pude generar una respuesta.';
+
+    // Strip any remaining <think>...</think> blocks as safety net
+    raw = stripThinking(raw);
+
     const { reply, imageIds } = parseImageTags(raw);
 
     history.push({ role: 'assistant', content: reply || raw });
