@@ -4,8 +4,11 @@ const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const wa      = require('./src/whatsapp');
-const ai      = require('./src/ai');
+const wa          = require('./src/whatsapp');
+const ai          = require('./src/ai');
+const prospecting = require('./src/prospecting');
+
+prospecting.init(wa);
 
 const app    = express();
 const PORT   = process.env.PORT || 5000;
@@ -59,8 +62,18 @@ wa.on('message', async (msg) => {
     }
 });
 
-wa.on('connected',    (d) => console.log(`[WA] Conectado: ${d.phone}`));
-wa.on('disconnected', (d) => console.log(`[WA] Desconectado: ${d.reason}`));
+wa.on('connected', (d) => {
+    console.log(`[WA] Conectado: ${d.phone}`);
+    const cfg = prospecting.getStats().config;
+    if (cfg.enabled) {
+        setTimeout(() => prospecting.start(), 5000);
+    }
+});
+
+wa.on('disconnected', (d) => {
+    console.log(`[WA] Desconectado: ${d.reason}`);
+    prospecting.stop();
+});
 
 // ── Status ─────────────────────────────────────────────────────────────────
 app.get('/status', async (_req, res) => {
@@ -181,6 +194,39 @@ app.get('/images/:id/file', (req, res) => {
     if (!fs.existsSync(filePath)) return res.status(404).end();
     res.setHeader('Content-Type', img.mimetype);
     res.sendFile(filePath);
+});
+
+// ── Prospecting: stats & config ────────────────────────────────────────────
+app.get('/prospect/stats', (_req, res) => {
+    res.json(prospecting.getStats());
+});
+
+app.post('/prospect/start', async (_req, res) => {
+    if (wa.getStatus() !== 'connected')
+        return res.status(400).json({ success: false, message: 'WhatsApp no conectado' });
+    await prospecting.start();
+    res.json({ success: true, stats: prospecting.getStats() });
+});
+
+app.post('/prospect/stop', (_req, res) => {
+    prospecting.stop();
+    res.json({ success: true, stats: prospecting.getStats() });
+});
+
+app.post('/prospect/reset', (_req, res) => {
+    prospecting.resetContacted();
+    res.json({ success: true, stats: prospecting.getStats() });
+});
+
+app.post('/prospect/config', (req, res) => {
+    const { delayMin, delayMax, maxPerHour, template } = req.body;
+    const updates = {};
+    if (delayMin  !== undefined) updates.delayMin  = Number(delayMin);
+    if (delayMax  !== undefined) updates.delayMax  = Number(delayMax);
+    if (maxPerHour !== undefined) updates.maxPerHour = Number(maxPerHour);
+    if (template  !== undefined) updates.template  = template;
+    prospecting.setProspectConfig(updates);
+    res.json({ success: true, config: prospecting.getStats().config });
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────

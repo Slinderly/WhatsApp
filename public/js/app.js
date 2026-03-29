@@ -12,7 +12,9 @@ function switchTab(name) {
     });
     const section = document.getElementById('tab-' + name);
     if (section) section.classList.add('active');
-    if (name === 'images') loadImages();
+    if (name === 'images')   loadImages();
+    if (name === 'prospect') { loadProspectStats(); startProspectPolling(); }
+    else stopProspectPolling();
 }
 
 document.querySelectorAll('[data-tab]').forEach(btn => {
@@ -373,7 +375,124 @@ function toggleKey() {
     input.type  = input.type === 'password' ? 'text' : 'password';
 }
 
+// ── Prospecting ──────────────────────────────────────────────────────────────
+let prospectPollingInterval = null;
+
+async function loadProspectStats() {
+    try {
+        const r = await fetch('/prospect/stats');
+        const d = await r.json();
+        renderProspectStats(d);
+        applyProspectState(d.config.enabled);
+        document.getElementById('pDelayMin').value   = d.config.delayMin   || 50;
+        document.getElementById('pDelayMax').value   = d.config.delayMax   || 100;
+        document.getElementById('pMaxPerHour').value = d.config.maxPerHour || 12;
+        document.getElementById('pTemplate').value   = d.config.template   || '';
+    } catch (_) {}
+}
+
+function renderProspectStats(d) {
+    const statusLabels = {
+        idle: '⏸ En espera', scanning: '🔍 Escaneando grupos…',
+        sending: '📤 Enviando mensajes…', paused: '⏳ Pausa por límite de hora',
+        stopped: '⏹ Detenido',
+    };
+    const el = document.getElementById('prospectStats');
+    el.innerHTML = `
+        <div class="device-row"><strong>Estado:</strong> ${statusLabels[d.status] || d.status}</div>
+        <div class="device-row"><strong>Enviados hoy:</strong> ${d.totalSent} mensajes</div>
+        <div class="device-row"><strong>Esta hora:</strong> ${d.sentThisHour} / ${d.config.maxPerHour}</div>
+        <div class="device-row"><strong>En cola:</strong> ${d.queueSize} contactos</div>
+        <div class="device-row"><strong>Total contactados:</strong> ${d.totalContacted} personas</div>
+        ${d.lastSentAt ? `<div class="device-row sub">Último envío: ${new Date(d.lastSentAt).toLocaleString()}</div>` : ''}
+    `;
+}
+
+function applyProspectState(enabled) {
+    const btn   = document.getElementById('prospectBtn');
+    const title = document.getElementById('prospectTitle');
+    const sub   = document.getElementById('prospectSub');
+    btn.className     = 'power-btn ' + (enabled ? 'on' : 'off');
+    title.textContent = enabled ? 'Prospección activa' : 'Prospección apagada';
+    sub.textContent   = enabled
+        ? 'Enviando mensajes a miembros de grupos automáticamente'
+        : 'Activa para enviar mensajes a miembros de grupos';
+}
+
+async function toggleProspect() {
+    try {
+        const r   = await fetch('/prospect/stats');
+        const d   = await r.json();
+        const now = d.config.enabled;
+
+        if (!now && currentStatus !== 'connected') {
+            toast('Primero vincula tu WhatsApp 📱', 'error');
+            return;
+        }
+
+        const endpoint = now ? '/prospect/stop' : '/prospect/start';
+        const res = await fetch(endpoint, { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok || data.success === false) {
+            toast(data.message || 'Error', 'error');
+            return;
+        }
+
+        applyProspectState(!now);
+        renderProspectStats(data.stats || d);
+        toast(!now ? '🎯 Prospección iniciada' : '⏹ Prospección detenida', !now ? 'success' : 'info');
+
+        if (!now) startProspectPolling();
+        else stopProspectPolling();
+    } catch { toast('Error al cambiar estado', 'error'); }
+}
+
+async function resetProspected() {
+    if (!confirm('¿Reiniciar lista? Podrás volver a contactar a todos los usuarios.')) return;
+    const r = await fetch('/prospect/reset', { method: 'POST' });
+    const d = await r.json();
+    renderProspectStats(d.stats);
+    toast('Lista reiniciada ✅', 'info');
+}
+
+async function saveProspectConfig() {
+    const delayMin   = document.getElementById('pDelayMin').value;
+    const delayMax   = document.getElementById('pDelayMax').value;
+    const maxPerHour = document.getElementById('pMaxPerHour').value;
+    const template   = document.getElementById('pTemplate').value;
+
+    if (Number(delayMin) >= Number(delayMax)) {
+        toast('El delay mínimo debe ser menor al máximo', 'error');
+        return;
+    }
+
+    setStatus('prospectConfigStatus', 'Guardando…', 'info');
+    try {
+        const r = await fetch('/prospect/config', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ delayMin: Number(delayMin), delayMax: Number(delayMax), maxPerHour: Number(maxPerHour), template }),
+        });
+        const d = await r.json();
+        if (!d.success) throw new Error('Error al guardar');
+        setStatus('prospectConfigStatus', '✅ Configuración guardada', 'success');
+        toast('Guardado ✅', 'success');
+    } catch (err) {
+        setStatus('prospectConfigStatus', '❌ ' + err.message, 'error');
+    }
+}
+
+function startProspectPolling() {
+    if (!prospectPollingInterval)
+        prospectPollingInterval = setInterval(loadProspectStats, 5000);
+}
+
+function stopProspectPolling() {
+    if (prospectPollingInterval) { clearInterval(prospectPollingInterval); prospectPollingInterval = null; }
+}
+
 // ── Init ────────────────────────────────────────────────────────────────────
 startStatusPolling();
 loadBotState();
 loadConfig();
+loadProspectStats();

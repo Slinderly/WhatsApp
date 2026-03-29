@@ -26,6 +26,9 @@
       <button class="nav-btn" data-tab="images">
         <span class="nav-icon">🖼️</span> Imágenes
       </button>
+      <button class="nav-btn" data-tab="prospect">
+        <span class="nav-icon">🎯</span> Prospectar
+      </button>
       <button class="nav-btn" data-tab="config">
         <span class="nav-icon">⚙️</span> Configurar
       </button>
@@ -175,6 +178,76 @@
       </div>
     </section>
 
+    <!-- ── TAB: PROSPECTAR ──────────────────────────────────── -->
+    <section class="tab" id="tab-prospect">
+      <div class="tab-header">
+        <h1>Prospectar Grupos</h1>
+        <p>Detecta miembros de tus grupos y envíales el pitch automáticamente</p>
+      </div>
+
+      <!-- Power row -->
+      <div class="card power-card">
+        <div class="power-row">
+          <div>
+            <div class="power-title" id="prospectTitle">Prospección apagada</div>
+            <div class="power-sub" id="prospectSub">Activa para enviar mensajes a miembros de grupos</div>
+          </div>
+          <button class="power-btn off" id="prospectBtn" onclick="toggleProspect()">
+            <span class="power-icon">⏻</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="card" id="prospectStatsCard">
+        <div class="card-title">
+          <span class="badge badge-gray">ESTADÍSTICAS</span>
+          Actividad en tiempo real
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadProspectStats()">↻</button>
+        </div>
+        <div id="prospectStats" class="device-info">
+          <div class="device-row">Cargando…</div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="resetProspected()">
+            Reiniciar lista de contactados
+          </button>
+        </div>
+      </div>
+
+      <!-- Config -->
+      <div class="card">
+        <div class="card-title">
+          <span class="badge badge-blue">CONFIGURAR</span>
+          Parámetros anti-ban
+        </div>
+        <div class="config-grid" style="grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label>Delay mínimo (seg)</label>
+            <input id="pDelayMin" type="number" value="50" min="30" max="300">
+            <small>Espera mínima entre mensajes</small>
+          </div>
+          <div class="form-group">
+            <label>Delay máximo (seg)</label>
+            <input id="pDelayMax" type="number" value="100" min="60" max="600">
+            <small>Espera máxima entre mensajes</small>
+          </div>
+          <div class="form-group">
+            <label>Máx. mensajes / hora</label>
+            <input id="pMaxPerHour" type="number" value="12" min="1" max="30">
+            <small>Recomendado: 10-15 por hora</small>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <label>Mensaje de prospección</label>
+          <textarea id="pTemplate" rows="4" placeholder="Hola {nombre} 👋 …"></textarea>
+          <small>Usa <strong>{nombre}</strong> para personalizar con el nombre del usuario</small>
+        </div>
+        <div id="prospectConfigStatus" class="card-status" style="display:none"></div>
+        <button class="btn btn-primary" style="margin-top:8px" onclick="saveProspectConfig()">Guardar configuración</button>
+      </div>
+    </section>
+
     <!-- ── TAB: CONFIGURAR ───────────────────────────────────── -->
     <section class="tab" id="tab-config">
       <div class="tab-header">
@@ -245,6 +318,10 @@
     <button class="bnav-btn" data-tab="images">
       <span class="bnav-icon">🖼️</span>
       <span class="bnav-label">Imágenes</span>
+    </button>
+    <button class="bnav-btn" data-tab="prospect">
+      <span class="bnav-icon">🎯</span>
+      <span class="bnav-label">Prospectar</span>
     </button>
     <button class="bnav-btn" data-tab="config">
       <span class="bnav-icon">⚙️</span>

@@ -220,6 +220,38 @@ const disconnect = () => {
     if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 };
 
+// ── Get own JID ─────────────────────────────────────────────────────────────
+const getMyJid = () => {
+    if (!sock) return null;
+    const me = sock.authState?.creds?.me;
+    if (!me?.id) return null;
+    return me.id.includes(':') ? me.id.split(':')[0] + '@s.whatsapp.net' : me.id;
+};
+
+// ── Get all groups ───────────────────────────────────────────────────────────
+const getGroups = async () => {
+    if (!sock || status !== 'connected') throw new Error('WhatsApp no conectado');
+    const chats = await sock.groupFetchAllParticipating();
+    return Object.values(chats).map(g => ({ id: g.id, subject: g.subject }));
+};
+
+// ── Get group participants ───────────────────────────────────────────────────
+const getGroupParticipants = async (groupId) => {
+    if (!sock || status !== 'connected') throw new Error('WhatsApp no conectado');
+    const meta = await sock.groupMetadata(groupId);
+    return (meta.participants || []).map(p => ({
+        id:   p.id,
+        name: p.notify || p.name || null,
+        admin: p.admin || null,
+    }));
+};
+
+// ── Send presence (typing indicator) ────────────────────────────────────────
+const sendPresence = async (jid, type) => {
+    if (!sock || status !== 'connected') return;
+    try { await sock.sendPresenceUpdate(type, jid); } catch (_) {}
+};
+
 // ── Send text ───────────────────────────────────────────────────────────────
 const sendText = async (jid, text) => {
     if (!sock || status !== 'connected') throw new Error('WhatsApp no conectado');
@@ -256,6 +288,7 @@ const getDevice = () => device;
 module.exports = {
     connectQR, connectPairing, disconnect,
     sendText, sendImage, sendImageBuffer,
+    sendPresence, getGroups, getGroupParticipants, getMyJid,
     getQR, getStatus, getDevice, restoreSession,
     on:  (e, fn) => bus.on(e, fn),
     off: (e, fn) => bus.off(e, fn),

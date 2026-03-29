@@ -92,7 +92,13 @@ const getConfig = () => ({
 const buildImageContext = (images) => {
     if (!images || images.length === 0) return '';
     const list = images.map(img => `• ID:${img.id} — "${img.label}"`).join('\n');
-    return `\n\n════ IMÁGENES DISPONIBLES ════\nPuedes enviar estas imágenes cuando sean relevantes para la conversación. Escribe [IMG:id] en tu respuesta para enviar una imagen. Puedes enviar varias.\n${list}\n\nEjemplo: si el cliente pregunta por el catálogo y tienes una imagen etiquetada "Catálogo de productos", incluye [IMG:abc123] en tu respuesta.`;
+    return `\n\n════ TUS IMÁGENES PARA ENVIAR ════
+IMPORTANTE: Estas imágenes son TUYAS propias — el negocio las subió para que tú las envíes. El cliente NO te ha enviado estas imágenes. Son recursos que tú puedes adjuntar en tus respuestas cuando sea relevante.
+Cuando quieras enviar una imagen al cliente, escribe [IMG:id] en tu respuesta. Puedes enviar varias.
+${list}
+
+Ejemplo: si el cliente pregunta por el catálogo y tienes una imagen etiquetada "Catálogo de productos", incluye [IMG:abc123] en tu respuesta.
+Si el cliente envía una imagen propia (su foto, captura, etc.), trátala como texto descriptivo de su parte — tú no recibes imágenes del cliente, solo texto.`;
 };
 
 // Parse [IMG:id] tags from the AI response

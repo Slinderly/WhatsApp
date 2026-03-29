@@ -34,14 +34,15 @@ Everything runs on **port 5000**.
 ├── server.js               # Entry point: Express app, routes, WA event handlers
 ├── package.json
 ├── src/
-│   ├── whatsapp.js         # WhatsApp engine: QR/pairing, multi-session, reconnect
-│   └── ai.js               # Groq AI: per-JID conversation history, config
+│   ├── whatsapp.js         # WhatsApp engine: QR/pairing, reconnect, group utils, presence
+│   ├── ai.js               # Groq AI: per-JID conversation history, config, image context
+│   └── prospecting.js      # Auto-prospecting: scan groups, anti-ban delays, contacted tracking
 ├── public/                 # Static frontend assets
 │   ├── index.html
 │   ├── css/
 │   └── js/
 ├── sessions/               # Auto-created: Baileys auth files per session
-└── data/                   # Auto-created: broadcast sent list
+└── data/                   # Auto-created: images, contacted list, prospect config
 ```
 
 ---
