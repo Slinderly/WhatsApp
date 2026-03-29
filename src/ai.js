@@ -188,6 +188,13 @@ const ask = async (jid, userMessage, images = []) => {
     return { reply, imageIds };
 };
 
+// Inject a message into history without calling the AI
+// Used to seed context when the prospecting module sends the first message
+const primeHistory = (jid, assistantMessage) => {
+    if (!conversations[jid]) conversations[jid] = [];
+    conversations[jid].push({ role: 'assistant', content: assistantMessage });
+};
+
 const clearHistory    = (jid) => { delete conversations[jid]; };
 const clearAllHistory = ()    => { Object.keys(conversations).forEach(k => delete conversations[k]); };
 
@@ -201,4 +208,4 @@ const getModels = () => [
     'mixtral-8x7b-32768',
 ];
 
-module.exports = { ask, setConfig, getConfig, clearHistory, clearAllHistory, getModels };
+module.exports = { ask, setConfig, getConfig, primeHistory, clearHistory, clearAllHistory, getModels };

@@ -1,5 +1,6 @@
 const path = require('path');
 const fs   = require('fs');
+const ai   = require('./ai');
 
 const DATA_DIR          = path.join(__dirname, '../data');
 const CONTACTED_FILE    = path.join(DATA_DIR, 'contacted.json');
@@ -17,9 +18,9 @@ const saveContacted = (set) =>
 
 const defaultConfig = {
     enabled:    false,
-    delayMin:   50,
-    delayMax:   100,
-    maxPerHour: 12,
+    delayMin:   25,
+    delayMax:   55,
+    maxPerHour: 20,
     template:   'Hola {nombre} 👋 Somos wibc.ai, una plataforma SaaS enfocada en la implementación de bots de ventas con IA 🤖 para automatizar la atención y convertir mensajes en ventas 💰. ¿Te gustaría conocer cómo funciona en tu negocio?',
 };
 
@@ -148,6 +149,9 @@ const processNext = async () => {
         await waModule.sendPresence(contact.jid, 'paused');
 
         await waModule.sendText(contact.jid, msg);
+
+        // Seed AI memory so the bot knows what was already sent to this user
+        ai.primeHistory(contact.jid, msg);
 
         contacted.add(contact.jid);
         saveContacted(contacted);
