@@ -3,12 +3,31 @@ const express = require('express');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const wa      = require('./src/whatsapp');
 const ai      = require('./src/ai');
 
 const app    = express();
 const PORT   = process.env.PORT || 5000;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Image storage
+const IMGS_DIR   = path.join(__dirname, 'data/imgs');
+const IMGS_META  = path.join(__dirname, 'data/images.json');
+if (!fs.existsSync(IMGS_DIR)) fs.mkdirSync(IMGS_DIR, { recursive: true });
+
+const loadImages = () => {
+    try { return JSON.parse(fs.readFileSync(IMGS_META, 'utf8')); }
+    catch { return []; }
+};
+const saveImages = (arr) => fs.writeFileSync(IMGS_META, JSON.stringify(arr, null, 2));
+
+const imgStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, IMGS_DIR),
+    filename:    (_req, file, cb)  => cb(null, uuidv4() + path.extname(file.originalname)),
+});
+const upload = multer({ storage: imgStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+const singleUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -18,9 +37,23 @@ wa.on('message', async (msg) => {
     if (!msg.text || msg.jid.endsWith('@g.us')) return;
     const cfg = ai.getConfig();
     if (!cfg.enabled) return;
+
     try {
-        const reply = await ai.ask(msg.jid, msg.text);
-        await wa.sendText(msg.jid, reply);
+        const images   = loadImages();
+        const { reply, imageIds } = await ai.ask(msg.jid, msg.text, images);
+
+        // Send any images the AI decided to send
+        for (const imgId of imageIds) {
+            const img = images.find(i => i.id === imgId);
+            if (!img) continue;
+            const imgPath = path.join(IMGS_DIR, img.filename);
+            if (!fs.existsSync(imgPath)) continue;
+            const buffer = fs.readFileSync(imgPath);
+            await wa.sendImageBuffer(msg.jid, buffer, img.mimetype, '');
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        if (reply.trim()) await wa.sendText(msg.jid, reply);
     } catch (err) {
         console.error('[AI]', err.message);
     }
@@ -37,8 +70,7 @@ app.get('/status', async (_req, res) => {
 
 // ── Connect QR ─────────────────────────────────────────────────────────────
 app.post('/connect/qr', (_req, res) => {
-    const s = wa.getStatus();
-    if (s !== 'connected') wa.connectQR();
+    if (wa.getStatus() !== 'connected') wa.connectQR();
     res.json({ success: true });
 });
 
@@ -60,42 +92,6 @@ app.delete('/disconnect', (_req, res) => {
     res.json({ success: true });
 });
 
-// ── Send text ──────────────────────────────────────────────────────────────
-app.post('/send', async (req, res) => {
-    const { jid, text } = req.body;
-    if (!jid || !text) return res.status(400).json({ success: false, message: 'jid y text requeridos' });
-    try {
-        await wa.sendText(jid, text);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// ── Send image by URL ──────────────────────────────────────────────────────
-app.post('/send/image', async (req, res) => {
-    const { jid, imageUrl, caption = '' } = req.body;
-    if (!jid || !imageUrl) return res.status(400).json({ success: false, message: 'jid e imageUrl requeridos' });
-    try {
-        await wa.sendImage(jid, imageUrl, caption);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// ── Send image upload ──────────────────────────────────────────────────────
-app.post('/send/image/upload', upload.single('image'), async (req, res) => {
-    const { jid, caption = '' } = req.body;
-    if (!jid || !req.file) return res.status(400).json({ success: false, message: 'jid e imagen requeridos' });
-    try {
-        await wa.sendImageBuffer(jid, req.file.buffer, req.file.mimetype, caption);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
 // ── Bot config ─────────────────────────────────────────────────────────────
 app.get('/bot/config', (_req, res) => {
     res.json(ai.getConfig());
@@ -115,6 +111,76 @@ app.post('/bot/config', (req, res) => {
 
 app.get('/bot/models', (_req, res) => {
     res.json({ models: ai.getModels() });
+});
+
+// ── Images: list ───────────────────────────────────────────────────────────
+app.get('/images', (_req, res) => {
+    res.json({ images: loadImages() });
+});
+
+// ── Images: upload multiple ────────────────────────────────────────────────
+app.post('/images/upload', upload.array('images', 20), (req, res) => {
+    const labels = req.body.labels;  // JSON string array or comma-separated
+    let labelArr = [];
+    try { labelArr = JSON.parse(labels); } catch { labelArr = (labels || '').split('||'); }
+
+    if (!req.files || req.files.length === 0)
+        return res.status(400).json({ success: false, message: 'No se recibieron imágenes' });
+
+    const images = loadImages();
+    const added  = [];
+
+    req.files.forEach((file, i) => {
+        const entry = {
+            id:        uuidv4(),
+            filename:  file.filename,
+            label:     (labelArr[i] || `Imagen ${images.length + i + 1}`).trim(),
+            mimetype:  file.mimetype,
+            size:      file.size,
+            createdAt: new Date().toISOString(),
+        };
+        images.push(entry);
+        added.push(entry);
+    });
+
+    saveImages(images);
+    res.json({ success: true, added });
+});
+
+// ── Images: delete ─────────────────────────────────────────────────────────
+app.delete('/images/:id', (req, res) => {
+    let images = loadImages();
+    const img  = images.find(i => i.id === req.params.id);
+    if (!img) return res.status(404).json({ success: false, message: 'No encontrada' });
+
+    const filePath = path.join(IMGS_DIR, img.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    images = images.filter(i => i.id !== req.params.id);
+    saveImages(images);
+    res.json({ success: true });
+});
+
+// ── Images: update label ───────────────────────────────────────────────────
+app.patch('/images/:id', (req, res) => {
+    const { label } = req.body;
+    const images    = loadImages();
+    const img       = images.find(i => i.id === req.params.id);
+    if (!img) return res.status(404).json({ success: false, message: 'No encontrada' });
+    img.label = label;
+    saveImages(images);
+    res.json({ success: true, image: img });
+});
+
+// ── Serve image file ───────────────────────────────────────────────────────
+app.get('/images/:id/file', (req, res) => {
+    const images = loadImages();
+    const img    = images.find(i => i.id === req.params.id);
+    if (!img) return res.status(404).end();
+    const filePath = path.join(IMGS_DIR, img.filename);
+    if (!fs.existsSync(filePath)) return res.status(404).end();
+    res.setHeader('Content-Type', img.mimetype);
+    res.sendFile(filePath);
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────

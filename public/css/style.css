@@ -697,11 +697,18 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 @media (max-width: 768px) {
   .sidebar { display: none; }
   .bottom-nav { display: flex; }
-  .layout { height: calc(100vh - 60px - env(safe-area-inset-bottom)); }
-  .main { padding: 20px 16px 24px; }
+  .layout { height: 100vh; overflow: hidden; }
+  .main {
+    padding: 20px 16px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    height: 100%;
+    overflow-y: auto;
+  }
   .message-log { height: calc(100vh - 300px - env(safe-area-inset-bottom)); }
   .groups-layout { grid-template-columns: 1fr; }
   .ai-grid { grid-template-columns: 1fr; }
+  .connect-cards { grid-template-columns: 1fr; }
+  .config-grid { grid-template-columns: 1fr; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -843,3 +850,160 @@ select option { background: #fff; }
   display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════════
+   IMAGE LIBRARY
+═══════════════════════════════════════════════════════════════ */
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  margin-bottom: 16px;
+  background: var(--surface);
+}
+.drop-zone:hover,
+.drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(37,211,102,.05);
+}
+.drop-icon { font-size: 2.2rem; margin-bottom: 8px; }
+.drop-text  { font-weight: 700; font-size: .95rem; }
+.drop-sub   { font-size: .8rem; color: var(--sub); margin-top: 4px; }
+
+/* Preview list */
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.preview-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.preview-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+.preview-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.preview-filename {
+  font-size: .78rem;
+  color: var(--sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-label {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: .88rem;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+}
+.preview-label:focus { border-color: var(--accent); }
+
+/* Gallery */
+.image-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.img-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+  transition: box-shadow .15s;
+}
+.img-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.img-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: var(--surface2);
+}
+.img-info {
+  padding: 6px 8px;
+}
+.img-label {
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  color: var(--text);
+  transition: color .15s;
+}
+.img-label:hover { color: var(--accent); }
+.img-date {
+  font-size: .7rem;
+  color: var(--sub);
+  margin-top: 2px;
+}
+.img-delete {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-size: .65rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.img-card:hover .img-delete { opacity: 1; }
+.img-delete:hover { background: var(--red); }
+
+/* Empty state */
+.empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--sub);
+  padding: 32px;
+  font-size: .88rem;
+}
+
+/* Connect cards */
+.connect-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 900px) {
+  .connect-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .image-gallery { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+
+.upload-card .btn { margin-top: 4px; }

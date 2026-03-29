@@ -23,6 +23,9 @@
       <button class="nav-btn" data-tab="connect">
         <span class="nav-icon">📱</span> Vincular
       </button>
+      <button class="nav-btn" data-tab="images">
+        <span class="nav-icon">🖼️</span> Imágenes
+      </button>
       <button class="nav-btn" data-tab="config">
         <span class="nav-icon">⚙️</span> Configurar
       </button>
@@ -45,7 +48,7 @@
         <p>Estado del bot y dispositivo conectado</p>
       </div>
 
-      <!-- Bot toggle -->
+      <!-- Bot power toggle -->
       <div class="card power-card">
         <div class="power-row">
           <div>
@@ -56,21 +59,22 @@
             <span class="power-icon">⏻</span>
           </button>
         </div>
-        <div id="powerStatus" class="card-status" style="margin-top:8px"></div>
+        <div id="powerStatus" class="card-status" style="margin-top:4px;display:none"></div>
       </div>
 
-      <!-- Device info -->
+      <!-- Device connected -->
       <div class="card" id="deviceCard" style="display:none">
         <div class="card-title">
           <span class="badge badge-green">CONECTADO</span>
           Dispositivo activo
         </div>
         <div id="deviceInfo" class="device-info"></div>
-        <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-top:12px" onclick="doDisconnect()">
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-top:4px" onclick="doDisconnect()">
           Desconectar WhatsApp
         </button>
       </div>
 
+      <!-- No device -->
       <div class="card" id="noDeviceCard">
         <div class="card-title">
           <span class="badge" style="background:#f2f2f2;color:#888">DESCONECTADO</span>
@@ -78,37 +82,6 @@
         </div>
         <p class="card-desc">Ve a <strong>Vincular</strong> para conectar tu WhatsApp.</p>
         <button class="btn btn-primary" onclick="switchTab('connect')">Vincular ahora →</button>
-      </div>
-
-      <!-- Send test message -->
-      <div class="card">
-        <div class="card-title">
-          <span class="badge badge-blue">ENVÍO</span>
-          Enviar mensaje
-        </div>
-        <div class="form-group">
-          <label>Número destino</label>
-          <input id="sendJid" type="text" placeholder="521234567890@s.whatsapp.net">
-          <small>Formato: <code>número@s.whatsapp.net</code></small>
-        </div>
-        <div class="form-group">
-          <label>Mensaje de texto</label>
-          <textarea id="sendText" rows="3" placeholder="Hola! 👋"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Imagen (opcional — URL pública)</label>
-          <input id="sendImageUrl" type="url" placeholder="https://ejemplo.com/imagen.jpg">
-        </div>
-        <div class="form-group">
-          <label>— o sube una imagen —</label>
-          <input id="sendImageFile" type="file" accept="image/*">
-        </div>
-        <div class="form-group">
-          <label>Pie de foto (si envías imagen)</label>
-          <input id="sendCaption" type="text" placeholder="Mira esto! 📸">
-        </div>
-        <div id="sendStatus" class="card-status"></div>
-        <button class="btn btn-primary" onclick="sendMsg()">Enviar →</button>
       </div>
     </section>
 
@@ -130,7 +103,7 @@
           <div id="qrBox" class="qr-box">
             <span>Presiona Generar QR</span>
           </div>
-          <div id="qrStatus" class="card-status"></div>
+          <div id="qrStatus" class="card-status" style="display:none"></div>
           <button class="btn btn-primary" onclick="startQR()">Generar QR</button>
         </div>
 
@@ -146,10 +119,59 @@
             <small>Con código de país, sin espacios ni guiones</small>
           </div>
           <div id="pairingCode" class="pairing-code" style="display:none"></div>
-          <div id="pairStatus" class="card-status"></div>
+          <div id="pairStatus" class="card-status" style="display:none"></div>
           <button class="btn btn-primary" onclick="startPairing()">Obtener código</button>
         </div>
 
+      </div>
+    </section>
+
+    <!-- ── TAB: IMÁGENES ─────────────────────────────────────── -->
+    <section class="tab" id="tab-images">
+      <div class="tab-header">
+        <h1>Biblioteca de imágenes</h1>
+        <p>Sube imágenes y ponles una etiqueta para que la IA sepa cuándo y cuál enviar</p>
+      </div>
+
+      <!-- Upload zone -->
+      <div class="card upload-card">
+        <div class="card-title">
+          <span class="badge badge-blue">SUBIR</span>
+          Agregar imágenes
+        </div>
+        <p class="card-desc">
+          Selecciona una o varias imágenes. Después escribe una etiqueta descriptiva para cada una — la IA usará esas etiquetas para decidir cuándo enviarla al cliente.
+        </p>
+
+        <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
+          <div class="drop-icon">🖼️</div>
+          <div class="drop-text">Haz clic o arrastra imágenes aquí</div>
+          <div class="drop-sub">PNG, JPG, WebP — hasta 15 MB por imagen</div>
+          <input id="fileInput" type="file" accept="image/*" multiple style="display:none" onchange="onFilesSelected(this.files)">
+        </div>
+
+        <!-- Preview list before upload -->
+        <div id="previewList" class="preview-list" style="display:none"></div>
+
+        <div id="uploadStatus" class="card-status" style="display:none"></div>
+        <button id="uploadBtn" class="btn btn-primary" onclick="uploadImages()" style="display:none">
+          Subir imágenes →
+        </button>
+      </div>
+
+      <!-- Image gallery -->
+      <div class="card">
+        <div class="card-title">
+          <span class="badge badge-gray">BIBLIOTECA</span>
+          Imágenes guardadas
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadImages()">↻</button>
+        </div>
+        <p class="card-desc">
+          La IA puede enviar cualquiera de estas imágenes cuando lo considere relevante según la etiqueta. Puedes editar la etiqueta haciendo clic en ella.
+        </p>
+        <div id="imageGallery" class="image-gallery">
+          <div class="empty">No hay imágenes aún. Sube la primera arriba.</div>
+        </div>
       </div>
     </section>
 
@@ -181,9 +203,9 @@
             <small>Recomendado: Qwen 3 32B o Llama 3.3 70B</small>
           </div>
           <div class="form-group">
-            <label>Historial por contacto (mensajes)</label>
+            <label>Historial por contacto</label>
             <input id="maxHistory" type="number" value="10" min="2" max="40">
-            <small>Cuántos mensajes recuerda el bot por conversación</small>
+            <small>Mensajes que recuerda el bot por conversación</small>
           </div>
         </div>
 
@@ -193,7 +215,7 @@
             Comportamiento del bot
           </div>
           <p class="card-desc">
-            El prompt define cómo responde el bot. Ya viene con todo el conocimiento de wibc.ai. Puedes editarlo libremente.
+            Define cómo responde el bot. Ya viene configurado con todo el conocimiento de wibc.ai.
           </p>
           <div class="form-group">
             <textarea id="systemPrompt" rows="16" placeholder="Eres el asistente de soporte de wibc.ai..."></textarea>
@@ -202,10 +224,8 @@
 
       </div>
 
-      <div id="configStatus" class="card-status" style="margin:0 0 12px"></div>
-      <button class="btn btn-primary" onclick="saveConfig()" style="min-width:180px">
-        Guardar configuración
-      </button>
+      <div id="configStatus" class="card-status" style="margin:0 0 12px;display:none"></div>
+      <button class="btn btn-primary" onclick="saveConfig()">Guardar configuración</button>
     </section>
 
   </main>
@@ -222,9 +242,13 @@
       <span class="bnav-icon">📱</span>
       <span class="bnav-label">Vincular</span>
     </button>
+    <button class="bnav-btn" data-tab="images">
+      <span class="bnav-icon">🖼️</span>
+      <span class="bnav-label">Imágenes</span>
+    </button>
     <button class="bnav-btn" data-tab="config">
       <span class="bnav-icon">⚙️</span>
-      <span class="bnav-label">Configurar</span>
+      <span class="bnav-label">Config</span>
     </button>
   </div>
 </nav>
