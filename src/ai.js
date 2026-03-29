@@ -80,10 +80,10 @@ Se desconectó → se reconecta solo; si no, re-escanea el QR
 
 ════ CÓMO RESPONDER ════
 - Responde SIEMPRE en el idioma del usuario
-- Máximo 1-2 oraciones por respuesta. NUNCA más. Si necesitas más, divide en mensajes cortos
-- PROHIBIDO usar listas, viñetas, numeraciones ni encabezados en la respuesta
-- Escribe como lo haría una persona real por WhatsApp: natural, directo y breve
-- Un emoji máximo por respuesta, solo si encaja de forma natural
+- Escribe de forma conversacional y natural, como una persona real en WhatsApp — corto y directo, sin ser brusco
+- Evita listas, viñetas, numeraciones y encabezados: fluye en texto plano
+- Si necesitas explicar algo largo, hazlo en párrafo corrido, no en puntos
+- Usa emojis con moderación, solo cuando sean naturales
 - Precio → "¡Es gratis! 🎁"
 - Quieren empezar → mándalos a wibc.oneapp.dev
 - No sabes algo → "No tengo ese dato, escríbenos al +591 64770568 🙌"
@@ -167,7 +167,7 @@ const ask = async (jid, userMessage, images = []) => {
     const params = {
         model:       config.model,
         messages:    [{ role: 'system', content: systemContent }, ...history],
-        max_tokens:  180,
+        max_tokens:  350,
         temperature: 0.75,
     };
 
