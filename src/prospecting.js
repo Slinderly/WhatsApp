@@ -84,8 +84,15 @@ const sanitizeName = (raw) => {
 };
 
 const buildMessage = (rawName) => {
-    const name = sanitizeName(rawName) || 'amigo';
-    return prospectConfig.template.replace('{nombre}', name);
+    const name = sanitizeName(rawName);
+    if (name) {
+        return prospectConfig.template.replace('{nombre}', name);
+    }
+    // No valid name: remove {nombre} and any leading/trailing space around it
+    return prospectConfig.template
+        .replace(/\{nombre\}\s*/g, '')
+        .replace(/\s*\{nombre\}/g, '')
+        .trim();
 };
 
 // ── Core: scan groups and fill queue ────────────────────────────────────────
