@@ -80,6 +80,11 @@ const sanitizeName = (raw) => {
     if (clean.length < 2) return null;
     // Reject if it's all the same character repeated (e.g. "...", "---")
     if (/^(.)\1+$/.test(clean)) return null;
+    // Reject if it's purely numeric (phone number used as name)
+    if (/^\d+$/.test(clean)) return null;
+    // Reject if less than half the characters are actual letters
+    const letters = clean.match(/\p{L}/gu) || [];
+    if (letters.length < 2) return null;
     return clean;
 };
 
