@@ -31,7 +31,7 @@ const download = (url, onProgress) => new Promise((resolve, reject) => {
     const args = [
         url,
         '-o', outTmpl,
-        '--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '--format', 'bestvideo[height<=720]+bestaudio/bestvideo+bestaudio/best',
         '--merge-output-format', 'mp4',
         '--no-playlist',
         '--max-filesize', '50m',
@@ -49,15 +49,23 @@ const download = (url, onProgress) => new Promise((resolve, reject) => {
         const line = d.toString();
         output += line;
         if (line.includes('[download]') && onProgress) onProgress(line.trim());
-        const tm = line.match(/\[info\] (.+): Downloading/);
-        if (tm) title = tm[1].slice(0, 80);
+        const tm = line.match(/\[(?:info|youtube|instagram|tiktok|twitter)\] [^:]+: (.+)/i);
+        if (tm && !tm[1].startsWith('Downloading') && tm[1].length > 3) title = tm[1].slice(0, 80);
     });
 
-    proc.stderr.on('data', (d) => { errOut += d.toString(); });
+    proc.stderr.on('data', (d) => {
+        const line = d.toString();
+        errOut += line;
+        if (line.includes('title') && onProgress) {
+            const m = line.match(/title\s*:\s*(.+)/i);
+            if (m) title = m[1].trim().slice(0, 80);
+        }
+    });
 
     proc.on('close', (code) => {
         if (code !== 0) {
-            return reject(new Error(errOut.split('\n').filter(Boolean).pop() || 'Error al descargar'));
+            const lastErr = errOut.split('\n').filter(l => l.trim() && !l.startsWith('WARNING')).pop() || 'Error al descargar';
+            return reject(new Error(lastErr.replace(/^ERROR: /, '')));
         }
 
         const files = fs.readdirSync(DOWNLOADS_DIR)
