@@ -78,7 +78,7 @@ async function handleAction(action, jid) {
             const isSimulator = jid.endsWith('@dashboard');
             try {
                 const opts   = { quality: action.quality || '720p', format: action.format || 'mp4' };
-                const qLabel = downloader.getQualities().find(q => q.id === opts.quality)?.label || opts.quality;
+                const qLabel = downloader.getQualityPreset(opts.quality)?.label || opts.quality;
 
                 if (isSimulator) {
                     const entry = await downloader.download(action.url, opts);

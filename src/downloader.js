@@ -24,12 +24,12 @@ const isValidUrl = (str) => {
 
 // ── Quality presets ───────────────────────────────────────────────────────────
 const QUALITY_PRESETS = {
-    'best':   { fmt: 'bestvideo+bestaudio/best',              label: 'Máxima calidad' },
-    '2160p':  { fmt: 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best[height<=2160]', label: '4K (2160p)' },
-    '1080p':  { fmt: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]', label: 'Full HD (1080p)' },
-    '720p':   { fmt: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]',   label: 'HD (720p)' },
-    '480p':   { fmt: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]',   label: 'SD (480p)' },
-    '360p':   { fmt: 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]',   label: 'Baja (360p)' },
+    'best':   { fmt: 'bestvideo+bestaudio/best',                                    label: 'Máxima calidad' },
+    '2160p':  { fmt: 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best',   label: '4K (2160p)' },
+    '1080p':  { fmt: 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',   label: 'Full HD (1080p)' },
+    '720p':   { fmt: 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',     label: 'HD (720p)' },
+    '480p':   { fmt: 'bestvideo[height<=480]+bestaudio/best[height<=480]/best',     label: 'SD (480p)' },
+    '360p':   { fmt: 'bestvideo[height<=360]+bestaudio/best[height<=360]/best',     label: 'Baja (360p)' },
     'audio':  { fmt: 'bestaudio/best', label: 'Solo audio (MP3)', audioOnly: true },
 };
 
@@ -41,10 +41,21 @@ const FORMAT_PRESETS = {
     'm4a':  'm4a',
 };
 
+const QUALITY_ALIASES = {
+    'max': 'best', 'maximum': 'best', 'highest': 'best', 'mejor': 'best', 'máxima': 'best', 'maxima': 'best', 'alta': 'best',
+    'hd': '720p', 'medium': '720p', 'normal': '720p', 'media': '720p',
+    'low': '360p', 'lowest': '360p', 'baja': '360p', 'menor': '360p', 'pequeña': '360p', 'pequeña': '360p',
+    'sd': '480p',
+    'full': '1080p', 'fullhd': '1080p', 'full hd': '1080p', 'fhd': '1080p',
+    '4k': '2160p', 'uhd': '2160p',
+    'mp3': 'audio', 'music': 'audio', 'audio only': 'audio', 'sound': 'audio', 'musica': 'audio', 'música': 'audio',
+};
+
 const getQualityPreset = (quality) => {
     if (!quality) return QUALITY_PRESETS['720p'];
     const q = String(quality).toLowerCase().trim();
-    return QUALITY_PRESETS[q] || QUALITY_PRESETS['720p'];
+    const resolved = QUALITY_ALIASES[q] || q;
+    return QUALITY_PRESETS[resolved] || QUALITY_PRESETS['720p'];
 };
 
 // ── Download ──────────────────────────────────────────────────────────────────
@@ -153,4 +164,4 @@ const formatSize = (bytes) => {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
-module.exports = { download, getHistory, deleteDownload, formatSize, getQualities, DOWNLOADS_DIR };
+module.exports = { download, getHistory, deleteDownload, formatSize, getQualities, getQualityPreset, DOWNLOADS_DIR };
