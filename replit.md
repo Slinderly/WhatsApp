@@ -1,106 +1,100 @@
-# wibc.ai — WhatsApp Framework
+# Asistente Personal — WhatsApp AI
 
-A WhatsApp multi-session framework built on Baileys with an AI auto-reply feature powered by Groq. Provides a web UI for managing WhatsApp connections, groups, broadcasting, and AI settings.
-
----
-
-## Architecture
-
-Single-process Node.js/Express server that serves:
-- Static frontend from `public/` (HTML + CSS + JS, no framework)
-- REST API for WhatsApp session management and AI configuration
-
-Everything runs on **port 5000**.
+Un asistente personal controlado 100% desde WhatsApp. Escríbele y él gestiona tus tareas, descarga videos, y puede personalizarse al instante.
 
 ---
 
-## Technologies
+## Arquitectura
 
-| Layer | Technology |
-|-------|-----------|
+Servidor único Node.js/Express que sirve:
+- Frontend estático desde `public/` (HTML + CSS + JS, sin frameworks)
+- REST API para WhatsApp, tareas, descargas y configuración del asistente
+
+Todo corre en **puerto 5000**.
+
+---
+
+## Tecnologías
+
+| Capa | Tecnología |
+|------|-----------|
 | Runtime | Node.js 20 (CommonJS) |
 | Backend | Express 5 |
 | WhatsApp | @whiskeysockets/baileys |
-| AI | Groq SDK (llama models) |
+| IA | Groq SDK (llama / qwen models) |
+| Descarga de videos | yt-dlp (sistema) + ffmpeg |
 | Frontend | Vanilla HTML + CSS + JS |
-| QR generation | qrcode |
-| Logging | pino (silent in production) |
+| QR | qrcode |
 
 ---
 
-## Project Structure
+## Estructura del proyecto
 
 ```
-├── server.js               # Entry point: Express app, routes, WA event handlers
+├── server.js               # Entry point: rutas API, manejador de eventos WA, ejecutor de acciones
 ├── package.json
 ├── src/
-│   ├── whatsapp.js         # WhatsApp engine: QR/pairing, reconnect, group utils, presence
-│   ├── ai.js               # Groq AI: per-JID conversation history, config, image context
-│   └── prospecting.js      # Auto-prospecting: scan groups, anti-ban delays, contacted tracking
-├── public/                 # Static frontend assets
-│   ├── index.html
-│   ├── css/
-│   └── js/
-├── sessions/               # Auto-created: Baileys auth files per session
-└── data/                   # Auto-created: images, contacted list, prospect config
+│   ├── whatsapp.js         # Motor WhatsApp: QR/pairing, reconexión, presencia, envío de video
+│   ├── assistant.js        # Asistente IA: prompt dinámico con tareas, parseo de [ACTION:json]
+│   ├── tasks.js            # Gestor de tareas: CRUD, prioridades, formateo
+│   └── downloader.js       # Descargador de videos con yt-dlp, historial
+├── public/                 # Frontend
+│   ├── index.html          # Tabs: Inicio, Vincular, Tareas, Descargas, Configurar
+│   ├── css/style.css
+│   └── js/app.js
+├── sessions/               # Auth Baileys (auto-generado)
+└── data/                   # tasks.json, downloads_history.json, assistant_config.json, downloads/
 ```
 
 ---
 
-## Running
+## Cómo funciona el asistente
 
-```bash
-npm install
-node server.js
+La IA recibe cada mensaje de WhatsApp y genera una respuesta + acciones opcionales.
+
+**Formato de acciones** (la IA las incluye en su respuesta):
+```
+[ACTION:{"type":"add_task","text":"ir al gym","priority":"alta"}]
+[ACTION:{"type":"download_video","url":"https://..."}]
+[ACTION:{"type":"update_config","key":"name","value":"Mia"}]
 ```
 
-Server starts on `http://0.0.0.0:5000` and auto-restores saved WhatsApp sessions.
+**Acciones disponibles:**
+- `add_task` — agrega tarea
+- `complete_task` — completa tarea por índice
+- `delete_task` — elimina tarea
+- `list_tasks` — lista tareas
+- `clear_done` — limpia completadas
+- `download_video` — descarga con yt-dlp y envía el video
+- `update_config` — modifica configuración del asistente
 
 ---
 
-## Environment Variables
+## Configuración persistente (`data/assistant_config.json`)
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | `5000` |
-| `GROQ_API_KEY` | Groq API key for AI replies | (none, AI disabled) |
+| Campo | Descripción | Default |
+|-------|-------------|---------|
+| `name` | Nombre del asistente | Asistente |
+| `ownerName` | Tu nombre | Jefe |
+| `language` | Idioma de respuestas | español |
+| `personality` | Prompt de personalidad | ... |
+| `model` | Modelo Groq | llama-3.3-70b-versatile |
+| `maxHistory` | Mensajes de historial | 15 |
+| `apiKey` | API Key Groq | null |
 
 ---
 
-## API Endpoints
+## Variables de entorno
 
-### WhatsApp Sessions
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/wa/sessions/:accountId` | List sessions for account |
-| GET | `/wa/status/:accountId/:sessionId` | Session status + QR |
-| POST | `/wa/connect/qr` | Start QR-based connection |
-| POST | `/wa/connect/pairing` | Start pairing-code connection |
-| DELETE | `/wa/sessions/:accountId/:sessionId` | Disconnect session |
-| POST | `/wa/send` | Send a message |
-| GET | `/wa/messages` | Recent message log |
-
-### Groups & Broadcast
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/wa/groups/:accountId` | List groups |
-| GET | `/wa/groups/:accountId/:groupId/members` | Group members |
-| POST | `/wa/broadcast` | Start broadcast to group members |
-| GET | `/wa/broadcast/status` | Broadcast progress |
-| POST | `/wa/broadcast/stop` | Stop broadcast |
-| POST | `/wa/broadcast/reset` | Clear sent history |
-
-### AI Settings
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/ai/settings` | Get AI config |
-| POST | `/ai/settings` | Update AI config |
-| GET | `/ai/models` | List available Groq models |
+| Variable | Descripción |
+|----------|-------------|
+| `PORT` | Puerto del servidor (default: 5000) |
+| `GROQ_API_KEY` | Clave API de Groq (también configurable desde UI/WhatsApp) |
 
 ---
 
 ## Deployment
 
-- **Target**: VM (always-running — needed for persistent WhatsApp WebSocket connections)
+- **Target**: VM (always-running — conexión WebSocket persistente de WhatsApp)
 - **Run**: `node server.js`
-- Sessions stored in `sessions/` directory (filesystem-persisted)
+- Sesiones guardadas en `sessions/`, datos en `data/`

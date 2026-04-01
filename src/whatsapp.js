@@ -270,6 +270,17 @@ const sendImageBuffer = async (jid, buffer, mimetype, caption = '') => {
     await sock.sendMessage(jid, { image: buffer, mimetype, caption });
 };
 
+// ── Send video from buffer ──────────────────────────────────────────────────
+const sendVideo = async (jid, buffer, filename, caption = '') => {
+    if (!sock || status !== 'connected') throw new Error('WhatsApp no conectado');
+    await sock.sendMessage(jid, {
+        video:    buffer,
+        mimetype: 'video/mp4',
+        fileName: filename,
+        caption,
+    });
+};
+
 // ── Get QR as data URL ──────────────────────────────────────────────────────
 const getQR = async () => {
     if (!qrRaw) return null;
@@ -287,7 +298,7 @@ const getDevice = () => device;
 
 module.exports = {
     connectQR, connectPairing, disconnect,
-    sendText, sendImage, sendImageBuffer,
+    sendText, sendImage, sendImageBuffer, sendVideo,
     sendPresence, getGroups, getGroupParticipants, getMyJid,
     getQR, getStatus, getDevice, restoreSession,
     on:  (e, fn) => bus.on(e, fn),

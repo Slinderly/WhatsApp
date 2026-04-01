@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>wibc.ai · Panel de Control</title>
+<title>Asistente Personal · WhatsApp</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
 <div class="layout">
 
-  <!-- ══ SIDEBAR ════════════════════════════════════════════════ -->
+  <!-- ══ SIDEBAR ══════════════════════════════════════════════════ -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="logo">wibc<span class="logo-accent">.ai</span></div>
-      <small>Bot de Soporte con IA</small>
+      <div class="logo">🤖 <span id="sidebarName">Asistente</span></div>
+      <small>Asistente Personal por WhatsApp</small>
     </div>
     <nav>
       <button class="nav-btn active" data-tab="home">
@@ -23,11 +23,11 @@
       <button class="nav-btn" data-tab="connect">
         <span class="nav-icon">📱</span> Vincular
       </button>
-      <button class="nav-btn" data-tab="images">
-        <span class="nav-icon">🖼️</span> Imágenes
+      <button class="nav-btn" data-tab="tasks">
+        <span class="nav-icon">✅</span> Tareas
       </button>
-      <button class="nav-btn" data-tab="prospect">
-        <span class="nav-icon">🎯</span> Prospectar
+      <button class="nav-btn" data-tab="downloads">
+        <span class="nav-icon">📥</span> Descargas
       </button>
       <button class="nav-btn" data-tab="config">
         <span class="nav-icon">⚙️</span> Configurar
@@ -41,58 +41,76 @@
     </div>
   </aside>
 
-  <!-- ══ MAIN ═══════════════════════════════════════════════════ -->
+  <!-- ══ MAIN ═════════════════════════════════════════════════════ -->
   <main class="main">
 
-    <!-- ── TAB: INICIO ───────────────────────────────────────── -->
+    <!-- ── TAB: INICIO ─────────────────────────────────────────── -->
     <section class="tab active" id="tab-home">
       <div class="tab-header">
         <h1>Inicio</h1>
-        <p>Estado del bot y dispositivo conectado</p>
+        <p>Estado de tu asistente personal</p>
       </div>
 
-      <!-- Bot power toggle -->
-      <div class="card power-card">
-        <div class="power-row">
+      <div class="home-grid">
+
+        <div class="card status-card" id="deviceCard" style="display:none">
+          <div class="status-icon">✅</div>
           <div>
-            <div class="power-title" id="powerTitle">Bot apagado</div>
-            <div class="power-sub" id="powerSub">Activa el bot para responder automáticamente</div>
+            <div class="card-title" style="margin:0 0 4px">WhatsApp Conectado</div>
+            <div id="deviceInfo" class="device-info"></div>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-top:8px" onclick="doDisconnect()">
+              Desconectar
+            </button>
           </div>
-          <button class="power-btn off" id="powerBtn" onclick="toggleBot()">
-            <span class="power-icon">⏻</span>
-          </button>
         </div>
-        <div id="powerStatus" class="card-status" style="margin-top:4px;display:none"></div>
-      </div>
 
-      <!-- Device connected -->
-      <div class="card" id="deviceCard" style="display:none">
-        <div class="card-title">
-          <span class="badge badge-green">CONECTADO</span>
-          Dispositivo activo
+        <div class="card status-card" id="noDeviceCard">
+          <div class="status-icon">📱</div>
+          <div>
+            <div class="card-title" style="margin:0 0 4px">Sin WhatsApp vinculado</div>
+            <p class="card-desc" style="margin:0 0 12px">Vincula tu número para empezar a usar el asistente</p>
+            <button class="btn btn-primary" onclick="switchTab('connect')">Vincular ahora →</button>
+          </div>
         </div>
-        <div id="deviceInfo" class="device-info"></div>
-        <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-top:4px" onclick="doDisconnect()">
-          Desconectar WhatsApp
-        </button>
-      </div>
 
-      <!-- No device -->
-      <div class="card" id="noDeviceCard">
-        <div class="card-title">
-          <span class="badge" style="background:#f2f2f2;color:#888">DESCONECTADO</span>
-          Sin dispositivo
+        <div class="card info-card">
+          <div class="card-title">💬 Comandos de ejemplo</div>
+          <div class="commands-list">
+            <div class="cmd"><span class="cmd-icon">📝</span><div><strong>Agregar tarea:</strong> "Recuérdame comprar leche"</div></div>
+            <div class="cmd"><span class="cmd-icon">✅</span><div><strong>Completar:</strong> "Completar tarea 1"</div></div>
+            <div class="cmd"><span class="cmd-icon">📋</span><div><strong>Ver tareas:</strong> "Mis tareas pendientes"</div></div>
+            <div class="cmd"><span class="cmd-icon">📥</span><div><strong>Descargar video:</strong> "Descarga https://youtube.com/..."</div></div>
+            <div class="cmd"><span class="cmd-icon">⚙️</span><div><strong>Cambiar nombre:</strong> "Tu nombre es Mia"</div></div>
+            <div class="cmd"><span class="cmd-icon">🌐</span><div><strong>Cambiar idioma:</strong> "Habla en inglés"</div></div>
+          </div>
         </div>
-        <p class="card-desc">Ve a <strong>Vincular</strong> para conectar tu WhatsApp.</p>
-        <button class="btn btn-primary" onclick="switchTab('connect')">Vincular ahora →</button>
+
+        <div class="card info-card">
+          <div class="card-title">📊 Resumen</div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <span class="summary-num" id="statPending">—</span>
+              <span class="summary-label">Tareas pendientes</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-num" id="statDone">—</span>
+              <span class="summary-label">Completadas</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-num" id="statDownloads">—</span>
+              <span class="summary-label">Videos descargados</span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
 
-    <!-- ── TAB: VINCULAR ─────────────────────────────────────── -->
+    <!-- ── TAB: VINCULAR ───────────────────────────────────────── -->
     <section class="tab" id="tab-connect">
       <div class="tab-header">
         <h1>Vincular WhatsApp</h1>
-        <p>Conecta tu número para activar el bot de soporte</p>
+        <p>Conecta tu número para activar el asistente</p>
       </div>
 
       <div class="connect-cards">
@@ -102,7 +120,7 @@
             <span class="badge badge-blue">QR</span>
             Código QR
           </div>
-          <p class="card-desc">Abre WhatsApp → Ajustes → Dispositivos vinculados → Vincular dispositivo</p>
+          <p class="card-desc">Abre WhatsApp → Ajustes → Dispositivos vinculados → Vincular dispositivo → Escanea el QR</p>
           <div id="qrBox" class="qr-box">
             <span>Presiona Generar QR</span>
           </div>
@@ -115,11 +133,11 @@
             <span class="badge badge-green">CÓDIGO</span>
             Código de emparejamiento
           </div>
-          <p class="card-desc">WhatsApp → Ajustes → Dispositivos vinculados → Vincular con número de teléfono</p>
+          <p class="card-desc">WhatsApp → Dispositivos vinculados → Vincular con número de teléfono</p>
           <div class="form-group">
-            <label>Tu número de teléfono</label>
+            <label>Número de teléfono</label>
             <input id="pairPhone" type="tel" placeholder="+591 70000000" style="width:100%">
-            <small>Con código de país, sin espacios ni guiones</small>
+            <small>Con código de país, sin espacios</small>
           </div>
           <div id="pairingCode" class="pairing-code" style="display:none"></div>
           <div id="pairStatus" class="card-status" style="display:none"></div>
@@ -129,176 +147,150 @@
       </div>
     </section>
 
-    <!-- ── TAB: IMÁGENES ─────────────────────────────────────── -->
-    <section class="tab" id="tab-images">
+    <!-- ── TAB: TAREAS ─────────────────────────────────────────── -->
+    <section class="tab" id="tab-tasks">
       <div class="tab-header">
-        <h1>Biblioteca de imágenes</h1>
-        <p>Sube imágenes y ponles una etiqueta para que la IA sepa cuándo y cuál enviar</p>
+        <h1>Mis Tareas</h1>
+        <p>Gestionadas también desde WhatsApp con la IA</p>
       </div>
 
-      <!-- Upload zone -->
-      <div class="card upload-card">
-        <div class="card-title">
-          <span class="badge badge-blue">SUBIR</span>
-          Agregar imágenes
+      <div class="card">
+        <div class="add-task-row">
+          <input id="newTaskInput" type="text" placeholder="Nueva tarea..." onkeydown="if(event.key==='Enter')addTaskUI()">
+          <select id="newTaskPriority">
+            <option value="normal">Normal</option>
+            <option value="media">Media 🟡</option>
+            <option value="alta">Alta 🔴</option>
+          </select>
+          <button class="btn btn-primary" onclick="addTaskUI()">+ Agregar</button>
         </div>
-        <p class="card-desc">
-          Selecciona una o varias imágenes. Después escribe una etiqueta descriptiva para cada una — la IA usará esas etiquetas para decidir cuándo enviarla al cliente.
-        </p>
-
-        <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
-          <div class="drop-icon">🖼️</div>
-          <div class="drop-text">Haz clic o arrastra imágenes aquí</div>
-          <div class="drop-sub">PNG, JPG, WebP — hasta 15 MB por imagen</div>
-          <input id="fileInput" type="file" accept="image/*" multiple style="display:none" onchange="onFilesSelected(this.files)">
-        </div>
-
-        <!-- Preview list before upload -->
-        <div id="previewList" class="preview-list" style="display:none"></div>
-
-        <div id="uploadStatus" class="card-status" style="display:none"></div>
-        <button id="uploadBtn" class="btn btn-primary" onclick="uploadImages()" style="display:none">
-          Subir imágenes →
-        </button>
+        <div id="taskStatus" class="card-status" style="display:none"></div>
       </div>
 
-      <!-- Image gallery -->
       <div class="card">
         <div class="card-title">
-          <span class="badge badge-gray">BIBLIOTECA</span>
-          Imágenes guardadas
-          <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadImages()">↻</button>
+          Tareas
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="tab-pill active" data-filter="all" onclick="setTaskFilter('all',this)">Todas</button>
+            <button class="tab-pill" data-filter="pending" onclick="setTaskFilter('pending',this)">Pendientes</button>
+            <button class="tab-pill" data-filter="done" onclick="setTaskFilter('done',this)">Completadas</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadTasks()">↻</button>
+          </div>
         </div>
-        <p class="card-desc">
-          La IA puede enviar cualquiera de estas imágenes cuando lo considere relevante según la etiqueta. Puedes editar la etiqueta haciendo clic en ella.
-        </p>
-        <div id="imageGallery" class="image-gallery">
-          <div class="empty">No hay imágenes aún. Sube la primera arriba.</div>
+        <div id="taskList" class="task-list">
+          <div class="empty">Cargando tareas...</div>
+        </div>
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="clearDoneTasks()">🧹 Limpiar completadas</button>
         </div>
       </div>
     </section>
 
-    <!-- ── TAB: PROSPECTAR ──────────────────────────────────── -->
-    <section class="tab" id="tab-prospect">
+    <!-- ── TAB: DESCARGAS ──────────────────────────────────────── -->
+    <section class="tab" id="tab-downloads">
       <div class="tab-header">
-        <h1>Prospectar Grupos</h1>
-        <p>Detecta miembros de tus grupos y envíales el pitch automáticamente</p>
+        <h1>Descargas de Videos</h1>
+        <p>Descarga videos desde WhatsApp enviando el enlace</p>
       </div>
 
-      <!-- Power row -->
-      <div class="card power-card">
-        <div class="power-row">
-          <div>
-            <div class="power-title" id="prospectTitle">Prospección apagada</div>
-            <div class="power-sub" id="prospectSub">Activa para enviar mensajes a miembros de grupos</div>
-          </div>
-          <button class="power-btn off" id="prospectBtn" onclick="toggleProspect()">
-            <span class="power-icon">⏻</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Stats -->
-      <div class="card" id="prospectStatsCard">
-        <div class="card-title">
-          <span class="badge badge-gray">ESTADÍSTICAS</span>
-          Actividad en tiempo real
-          <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadProspectStats()">↻</button>
-        </div>
-        <div id="prospectStats" class="device-info">
-          <div class="device-row">Cargando…</div>
-        </div>
-        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="resetProspected()">
-            Reiniciar lista de contactados
-          </button>
-        </div>
-      </div>
-
-      <!-- Config -->
       <div class="card">
         <div class="card-title">
-          <span class="badge badge-blue">CONFIGURAR</span>
-          Parámetros anti-ban
+          <span class="badge badge-blue">NUEVO</span>
+          Descargar video
         </div>
-        <div class="config-grid" style="grid-template-columns:1fr 1fr;gap:12px">
-          <div class="form-group">
-            <label>Delay mínimo (seg)</label>
-            <input id="pDelayMin" type="number" value="25" min="15" max="300">
-            <small>Espera mínima entre mensajes</small>
-          </div>
-          <div class="form-group">
-            <label>Delay máximo (seg)</label>
-            <input id="pDelayMax" type="number" value="55" min="30" max="600">
-            <small>Espera máxima entre mensajes</small>
-          </div>
-          <div class="form-group">
-            <label>Máx. mensajes / hora</label>
-            <input id="pMaxPerHour" type="number" value="20" min="1" max="40">
-            <small>Recomendado: 10-15 por hora</small>
-          </div>
+        <p class="card-desc">Pega cualquier URL de YouTube, TikTok, Instagram, Twitter y más. El video se enviará a tu WhatsApp automáticamente.</p>
+        <div class="form-group">
+          <input id="dlUrl" type="url" placeholder="https://www.youtube.com/watch?v=...">
         </div>
-        <div class="form-group" style="margin-top:8px">
-          <label>Mensaje de prospección</label>
-          <textarea id="pTemplate" rows="4" placeholder="Hola {nombre} 👋 …"></textarea>
-          <small>Usa <strong>{nombre}</strong> para personalizar con el nombre del usuario</small>
+        <div id="dlStatus" class="card-status" style="display:none"></div>
+        <button class="btn btn-primary" id="dlBtn" onclick="startDownload()">📥 Descargar</button>
+        <p class="card-desc" style="margin-top:8px">💡 También puedes pedir una descarga desde WhatsApp: <em>"Descarga https://..."</em></p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          Historial de descargas
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadDownloads()">↻</button>
         </div>
-        <div id="prospectConfigStatus" class="card-status" style="display:none"></div>
-        <button class="btn btn-primary" style="margin-top:8px" onclick="saveProspectConfig()">Guardar configuración</button>
+        <div id="downloadList" class="download-list">
+          <div class="empty">No hay descargas todavía.</div>
+        </div>
       </div>
     </section>
 
-    <!-- ── TAB: CONFIGURAR ───────────────────────────────────── -->
+    <!-- ── TAB: CONFIGURAR ─────────────────────────────────────── -->
     <section class="tab" id="tab-config">
       <div class="tab-header">
-        <h1>Configurar Bot</h1>
-        <p>Personaliza cómo responde el asistente de soporte</p>
+        <h1>Configurar Asistente</h1>
+        <p>Personaliza tu asistente — también puedes hacerlo desde WhatsApp</p>
       </div>
 
       <div class="config-grid">
 
         <div class="card">
           <div class="card-title">
+            <span class="badge badge-black">IDENTIDAD</span>
+            Información personal
+          </div>
+          <div class="form-group">
+            <label>Nombre del asistente</label>
+            <input id="cfgName" type="text" placeholder="Asistente">
+            <small>Cómo se llama tu IA</small>
+          </div>
+          <div class="form-group">
+            <label>Tu nombre</label>
+            <input id="cfgOwnerName" type="text" placeholder="Jefe">
+            <small>Cómo te llama el asistente</small>
+          </div>
+          <div class="form-group">
+            <label>Idioma</label>
+            <input id="cfgLanguage" type="text" placeholder="español">
+            <small>Idioma en el que responde</small>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
             <span class="badge badge-black">GROQ</span>
-            API &amp; Modelo
+            API & Modelo
           </div>
           <div class="form-group">
             <label>API Key de Groq</label>
             <div style="display:flex;gap:8px">
-              <input id="apiKey" type="password" placeholder="gsk_..." style="flex:1">
+              <input id="cfgApiKey" type="password" placeholder="gsk_..." style="flex:1">
               <button class="btn btn-ghost btn-sm" onclick="toggleKey()" style="padding:10px 13px">👁</button>
             </div>
             <small>Gratis en <a href="https://console.groq.com" target="_blank">console.groq.com</a></small>
           </div>
           <div class="form-group">
             <label>Modelo de IA</label>
-            <select id="aiModel"></select>
-            <small>Recomendado: Qwen 3 32B o Llama 3.3 70B</small>
+            <select id="cfgModel"></select>
           </div>
           <div class="form-group">
-            <label>Historial por contacto</label>
-            <input id="maxHistory" type="number" value="10" min="2" max="40">
-            <small>Mensajes que recuerda el bot por conversación</small>
+            <label>Historial de mensajes</label>
+            <input id="cfgMaxHistory" type="number" min="2" max="40" value="15">
+            <small>Mensajes que recuerda por conversación</small>
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" style="grid-column:1/-1">
           <div class="card-title">
-            <span class="badge badge-gray">PROMPT</span>
-            Comportamiento del bot
+            <span class="badge badge-gray">PERSONALIDAD</span>
+            Comportamiento del asistente
           </div>
-          <p class="card-desc">
-            Define cómo responde el bot. Ya viene configurado con todo el conocimiento de wibc.ai.
-          </p>
+          <p class="card-desc">Define cómo habla y actúa tu asistente. No incluyas instrucciones de tareas o descargas, eso ya está incluido automáticamente.</p>
           <div class="form-group">
-            <textarea id="systemPrompt" rows="16" placeholder="Eres el asistente de soporte de wibc.ai..."></textarea>
+            <textarea id="cfgPersonality" rows="6" placeholder="Eres un asistente personal inteligente..."></textarea>
           </div>
         </div>
 
       </div>
 
       <div id="configStatus" class="card-status" style="margin:0 0 12px;display:none"></div>
-      <button class="btn btn-primary" onclick="saveConfig()">Guardar configuración</button>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="saveConfig()">💾 Guardar configuración</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="clearHistory()">🗑️ Limpiar historial de conversaciones</button>
+      </div>
     </section>
 
   </main>
@@ -315,13 +307,13 @@
       <span class="bnav-icon">📱</span>
       <span class="bnav-label">Vincular</span>
     </button>
-    <button class="bnav-btn" data-tab="images">
-      <span class="bnav-icon">🖼️</span>
-      <span class="bnav-label">Imágenes</span>
+    <button class="bnav-btn" data-tab="tasks">
+      <span class="bnav-icon">✅</span>
+      <span class="bnav-label">Tareas</span>
     </button>
-    <button class="bnav-btn" data-tab="prospect">
-      <span class="bnav-icon">🎯</span>
-      <span class="bnav-label">Prospectar</span>
+    <button class="bnav-btn" data-tab="downloads">
+      <span class="bnav-icon">📥</span>
+      <span class="bnav-label">Videos</span>
     </button>
     <button class="bnav-btn" data-tab="config">
       <span class="bnav-icon">⚙️</span>

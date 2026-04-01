@@ -1,498 +1,344 @@
-// ── State ───────────────────────────────────────────────────────────────────
-let currentStatus = 'idle';
-let qrPollingInterval     = null;
-let statusPollingInterval = null;
-let pendingFiles = []; // { file, label }
+// ── State ─────────────────────────────────────────────────────────────────────
+let statusInterval = null;
+let qrInterval     = null;
+let taskFilter     = 'all';
 
-// ── Tab navigation ──────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    initNav();
+    startStatusPolling();
+    loadTasks();
+    loadDownloads();
+    loadConfig();
+    loadSummary();
+});
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function initNav() {
+    const allBtns = document.querySelectorAll('[data-tab]');
+    allBtns.forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+}
+
 function switchTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.nav-btn, .bnav-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.tab === name);
-    });
-    const section = document.getElementById('tab-' + name);
-    if (section) section.classList.add('active');
-    if (name === 'images')   loadImages();
-    if (name === 'prospect') { loadProspectStats(); startProspectPolling(); }
-    else stopProspectPolling();
+    document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
+    document.getElementById(`tab-${name}`)?.classList.add('active');
+    document.querySelectorAll(`[data-tab="${name}"]`).forEach(b => b.classList.add('active'));
+
+    if (name === 'tasks')     loadTasks();
+    if (name === 'downloads') loadDownloads();
 }
 
-document.querySelectorAll('[data-tab]').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-});
-
-// ── Toast ───────────────────────────────────────────────────────────────────
-function toast(msg, type = 'info') {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.className   = 'toast show ' + type;
-    clearTimeout(el._t);
-    el._t = setTimeout(() => { el.className = 'toast'; }, 3200);
-}
-
-function setStatus(id, msg, type = '') {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent   = msg;
-    el.className     = 'card-status' + (type ? ' ' + type : '');
-    el.style.display = msg ? '' : 'none';
-}
-
-// ── Status polling ──────────────────────────────────────────────────────────
-async function fetchStatus() {
-    try {
-        const r = await fetch('/status');
-        const d = await r.json();
-        updateUI(d);
-    } catch (_) {}
-}
-
-function updateUI({ status, device, qr }) {
-    currentStatus = status;
-
-    // Sidebar dot
-    const wrap  = document.getElementById('sidebarStatus');
-    const dot   = wrap.querySelector('.dot');
-    const label = wrap.querySelector('.dot-label');
-    dot.className = 'dot dot-' + status;
-    const labels = {
-        idle: 'Sin conectar', connecting: 'Conectando…',
-        connected: 'Conectado', disconnected: 'Desconectado', timeout: 'Tiempo agotado',
-    };
-    label.textContent = labels[status] || status;
-
-    // Device cards
-    const deviceCard   = document.getElementById('deviceCard');
-    const noDeviceCard = document.getElementById('noDeviceCard');
-    if (status === 'connected' && device) {
-        deviceCard.style.display   = '';
-        noDeviceCard.style.display = 'none';
-        document.getElementById('deviceInfo').innerHTML =
-            `<div class="device-row"><strong>📱 ${device.phone}</strong>${device.name ? ' · ' + device.name : ''}</div>` +
-            `<div class="device-row sub">Conectado el ${new Date(device.connectedAt).toLocaleString()}</div>`;
-    } else {
-        deviceCard.style.display   = 'none';
-        noDeviceCard.style.display = '';
-    }
-
-    // QR box
-    const qrBox = document.getElementById('qrBox');
-    if (qr) {
-        qrBox.innerHTML = `<img src="${qr}" alt="QR Code">`;
-        setStatus('qrStatus', 'Escanea el QR desde tu WhatsApp', 'info');
-    } else if (status === 'connected') {
-        qrBox.innerHTML = '<span>✅ Conectado</span>';
-        setStatus('qrStatus', '', '');
-        stopQRPolling();
-    } else if (status === 'connecting') {
-        qrBox.innerHTML = '<span class="spinner"></span>';
-        setStatus('qrStatus', 'Generando QR…', 'info');
-    } else if (status === 'timeout') {
-        qrBox.innerHTML = '<span>⏱ Tiempo agotado</span>';
-        setStatus('qrStatus', 'El QR expiró. Vuelve a intentar.', 'error');
-        stopQRPolling();
-    }
-}
-
+// ── Status polling ────────────────────────────────────────────────────────────
 function startStatusPolling() {
     fetchStatus();
-    if (!statusPollingInterval)
-        statusPollingInterval = setInterval(fetchStatus, 3000);
+    statusInterval = setInterval(fetchStatus, 4000);
 }
 
-function stopQRPolling() {
-    if (qrPollingInterval) { clearInterval(qrPollingInterval); qrPollingInterval = null; }
-}
-
-// ── Bot toggle ──────────────────────────────────────────────────────────────
-async function loadBotState() {
+async function fetchStatus() {
     try {
-        const r = await fetch('/bot/config');
-        const d = await r.json();
-        applyBotState(d.enabled);
-    } catch (_) {}
+        const d = await api('/api/status');
+        updateStatusUI(d);
+    } catch {}
 }
 
-function applyBotState(enabled) {
-    const btn   = document.getElementById('powerBtn');
-    const title = document.getElementById('powerTitle');
-    const sub   = document.getElementById('powerSub');
-    btn.className     = 'power-btn ' + (enabled ? 'on' : 'off');
-    title.textContent = enabled ? 'Bot encendido' : 'Bot apagado';
-    sub.textContent   = enabled
-        ? 'Respondiendo automáticamente a los mensajes'
-        : 'Activa el bot para responder automáticamente';
-}
+function updateStatusUI(d) {
+    const status = d.status;
 
-async function toggleBot() {
-    try {
-        const r        = await fetch('/bot/config');
-        const d        = await r.json();
-        const newState = !d.enabled;
+    const dot  = document.querySelector('#sidebarStatus .dot');
+    const lbl  = document.querySelector('#sidebarStatus .dot-label');
+    const dCard = document.getElementById('deviceCard');
+    const nCard = document.getElementById('noDeviceCard');
+    const dInfo = document.getElementById('deviceInfo');
 
-        if (newState && currentStatus !== 'connected') {
-            toast('Primero vincula tu WhatsApp 📱', 'error');
-            return;
+    dot.className = 'dot dot-' + (status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected');
+    lbl.textContent = status === 'connected' ? `+${d.device?.phone || ''}` : status === 'connecting' ? 'Conectando...' : 'Sin conectar';
+
+    if (status === 'connected' && d.device) {
+        dCard.style.display = 'flex';
+        nCard.style.display = 'none';
+        dInfo.innerHTML = `
+            <div class="device-row"><strong>Número:</strong> +${d.device.phone}</div>
+            ${d.device.name ? `<div class="device-row"><strong>Nombre:</strong> ${d.device.name}</div>` : ''}
+            <div class="device-row"><strong>Conectado:</strong> ${new Date(d.device.connectedAt).toLocaleString()}</div>`;
+
+        if (qrInterval) { clearInterval(qrInterval); qrInterval = null; }
+    } else {
+        dCard.style.display = 'none';
+        nCard.style.display = 'block';
+        if (d.qr) {
+            document.getElementById('qrBox').innerHTML = `<img src="${d.qr}" width="210" height="210">`;
         }
-        await fetch('/bot/config', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: newState }),
-        });
-        applyBotState(newState);
-        toast(newState ? '✅ Bot activado' : '⏹ Bot desactivado', newState ? 'success' : 'info');
-    } catch { toast('Error al cambiar estado', 'error'); }
+    }
 }
 
-// ── Disconnect ──────────────────────────────────────────────────────────────
-async function doDisconnect() {
-    if (!confirm('¿Desconectar WhatsApp? Tendrás que volver a vincular.')) return;
-    await fetch('/disconnect', { method: 'DELETE' });
-    await fetch('/bot/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: false }) });
-    applyBotState(false);
-    toast('WhatsApp desconectado');
-    fetchStatus();
-}
-
-// ── Connect QR ──────────────────────────────────────────────────────────────
+// ── Connect ───────────────────────────────────────────────────────────────────
 async function startQR() {
-    if (currentStatus === 'connected') { toast('Ya estás conectado ✅', 'info'); return; }
-    document.getElementById('qrBox').innerHTML = '<span class="spinner"></span>';
-    setStatus('qrStatus', 'Iniciando…', 'info');
-    await fetch('/connect/qr', { method: 'POST' });
-    stopQRPolling();
-    qrPollingInterval = setInterval(fetchStatus, 2500);
-    fetchStatus();
+    setStatus('qrStatus', 'Iniciando conexión QR...', 'info');
+    document.getElementById('qrBox').innerHTML = '<span>Generando QR...</span>';
+    await api('/api/connect/qr', { method: 'POST' });
+    if (qrInterval) clearInterval(qrInterval);
+    qrInterval = setInterval(fetchStatus, 2000);
+    setStatus('qrStatus', 'Escanea el QR con tu WhatsApp', 'info');
 }
 
-// ── Connect pairing ─────────────────────────────────────────────────────────
 async function startPairing() {
     const phone = document.getElementById('pairPhone').value.trim();
-    if (!phone) { toast('Ingresa tu número de teléfono', 'error'); return; }
-    setStatus('pairStatus', 'Solicitando código…', 'info');
+    if (!phone) return showToast('Ingresa tu número de teléfono');
+    setStatus('pairStatus', 'Solicitando código...', 'info');
     document.getElementById('pairingCode').style.display = 'none';
     try {
-        const r = await fetch('/connect/pairing', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phoneNumber: phone }),
-        });
-        const d = await r.json();
-        if (!d.success) throw new Error(d.message);
-        const el = document.getElementById('pairingCode');
-        el.style.display = '';
-        el.textContent   = d.code;
-        setStatus('pairStatus', 'Ingresa este código en WhatsApp → Dispositivos vinculados → Vincular con número', 'info');
-        stopQRPolling();
-        qrPollingInterval = setInterval(fetchStatus, 2500);
-        fetchStatus();
-    } catch (err) {
-        setStatus('pairStatus', err.message, 'error');
+        const d = await api('/api/connect/pairing', { method: 'POST', body: { phoneNumber: phone } });
+        if (d.success) {
+            document.getElementById('pairingCode').textContent = d.code;
+            document.getElementById('pairingCode').style.display = 'block';
+            setStatus('pairStatus', 'Ingresa este código en tu WhatsApp', 'success');
+            if (qrInterval) clearInterval(qrInterval);
+            qrInterval = setInterval(fetchStatus, 2000);
+        } else {
+            setStatus('pairStatus', d.message || 'Error', 'error');
+        }
+    } catch (e) {
+        setStatus('pairStatus', e.message, 'error');
     }
 }
 
-// ── Image library ────────────────────────────────────────────────────────────
-
-// Drop zone drag events
-const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('drag-over');
-    onFilesSelected(e.dataTransfer.files);
-});
-
-function onFilesSelected(files) {
-    pendingFiles = [];
-    const list = document.getElementById('previewList');
-    list.innerHTML = '';
-    list.style.display = '';
-
-    Array.from(files).forEach((file, i) => {
-        pendingFiles.push({ file, label: '' });
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const item = document.createElement('div');
-            item.className = 'preview-item';
-            item.innerHTML = `
-                <img src="${e.target.result}" alt="preview" class="preview-thumb">
-                <div class="preview-meta">
-                    <div class="preview-filename">${file.name}</div>
-                    <input class="preview-label" type="text" placeholder="Etiqueta descriptiva (ej: Catálogo de precios 2024)" data-index="${i}">
-                    <small>${(file.size / 1024).toFixed(0)} KB</small>
-                </div>`;
-            list.appendChild(item);
-
-            item.querySelector('.preview-label').addEventListener('input', (ev) => {
-                pendingFiles[ev.target.dataset.index].label = ev.target.value;
-            });
-        };
-        reader.readAsDataURL(file);
-    });
-
-    document.getElementById('uploadBtn').style.display = '';
-    setStatus('uploadStatus', '', '');
+async function doDisconnect() {
+    if (!confirm('¿Desconectar WhatsApp?')) return;
+    await api('/api/disconnect', { method: 'DELETE' });
+    showToast('WhatsApp desconectado');
+    fetchStatus();
 }
 
-async function uploadImages() {
-    if (pendingFiles.length === 0) { toast('Selecciona imágenes primero', 'error'); return; }
-
-    setStatus('uploadStatus', 'Subiendo…', 'info');
-    document.getElementById('uploadBtn').disabled = true;
-
-    const form   = new FormData();
-    const labels = pendingFiles.map(p => p.label || p.file.name);
-    form.append('labels', JSON.stringify(labels));
-    pendingFiles.forEach(p => form.append('images', p.file));
-
+// ── Tasks ─────────────────────────────────────────────────────────────────────
+async function loadTasks() {
     try {
-        const r = await fetch('/images/upload', { method: 'POST', body: form });
-        const d = await r.json();
-        if (!d.success) throw new Error(d.message || 'Error al subir');
-
-        setStatus('uploadStatus', `✅ ${d.added.length} imagen(es) subida(s)`, 'success');
-        document.getElementById('previewList').style.display = 'none';
-        document.getElementById('uploadBtn').style.display  = 'none';
-        document.getElementById('fileInput').value = '';
-        pendingFiles = [];
-        loadImages();
-        toast(`✅ ${d.added.length} imagen(es) guardada(s)`, 'success');
-    } catch (err) {
-        setStatus('uploadStatus', '❌ ' + err.message, 'error');
-    }
-    document.getElementById('uploadBtn').disabled = false;
+        const d = await api(`/api/tasks?filter=${taskFilter}`);
+        renderTasks(d.tasks);
+        loadSummary();
+    } catch {}
 }
 
-async function loadImages() {
-    const gallery = document.getElementById('imageGallery');
-    gallery.innerHTML = '<div class="empty">Cargando…</div>';
-    try {
-        const r = await fetch('/images');
-        const d = await r.json();
-        renderGallery(d.images || []);
-    } catch {
-        gallery.innerHTML = '<div class="empty">Error al cargar imágenes</div>';
-    }
-}
-
-function renderGallery(images) {
-    const gallery = document.getElementById('imageGallery');
-    if (images.length === 0) {
-        gallery.innerHTML = '<div class="empty">No hay imágenes aún. Sube la primera arriba.</div>';
+function renderTasks(taskArr) {
+    const el = document.getElementById('taskList');
+    if (!taskArr || taskArr.length === 0) {
+        el.innerHTML = '<div class="empty">No hay tareas aquí.</div>';
         return;
     }
-    gallery.innerHTML = '';
-    images.forEach(img => {
-        const card = document.createElement('div');
-        card.className = 'img-card';
-        card.innerHTML = `
-            <img src="/images/${img.id}/file" alt="${img.label}" class="img-thumb" loading="lazy">
-            <div class="img-info">
-                <div class="img-label" id="label-${img.id}" onclick="editLabel('${img.id}')" title="Clic para editar">${img.label}</div>
-                <div class="img-date">${new Date(img.createdAt).toLocaleDateString()}</div>
+    el.innerHTML = taskArr.map(t => {
+        const prio = t.priority === 'alta' ? '🔴' : t.priority === 'media' ? '🟡' : '';
+        return `<div class="task-item ${t.done ? 'task-done' : ''}" data-id="${t.id}">
+            <div class="task-check" onclick="toggleTask('${t.id}',${t.done})">${t.done ? '✓' : ''}</div>
+            <div class="task-text">${escHtml(t.text)} <span class="task-prio">${prio}</span></div>
+            <div class="task-actions">
+                ${!t.done ? `<button class="btn btn-ghost btn-sm" onclick="toggleTask('${t.id}',false)">✓</button>` : ''}
+                <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="removeTask('${t.id}')">🗑</button>
             </div>
-            <button class="img-delete" onclick="deleteImage('${img.id}', this)" title="Eliminar">✕</button>`;
-        gallery.appendChild(card);
-    });
+        </div>`;
+    }).join('');
 }
 
-async function editLabel(id) {
-    const el       = document.getElementById('label-' + id);
-    const current  = el.textContent;
-    const newLabel = prompt('Nueva etiqueta para esta imagen:', current);
-    if (!newLabel || newLabel === current) return;
+async function addTaskUI() {
+    const input = document.getElementById('newTaskInput');
+    const text  = input.value.trim();
+    const prio  = document.getElementById('newTaskPriority').value;
+    if (!text) return;
     try {
-        const r = await fetch(`/images/${id}`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: newLabel }),
-        });
-        const d = await r.json();
-        if (d.success) { el.textContent = newLabel; toast('Etiqueta actualizada ✅', 'success'); }
-    } catch { toast('Error al actualizar', 'error'); }
+        await api('/api/tasks', { method: 'POST', body: { text, priority: prio } });
+        input.value = '';
+        showToast('Tarea agregada ✅');
+        loadTasks();
+    } catch (e) { showToast(e.message); }
 }
 
-async function deleteImage(id, btn) {
-    if (!confirm('¿Eliminar esta imagen?')) return;
+async function toggleTask(id, isDone) {
+    if (isDone) return;
+    try {
+        await api(`/api/tasks/${id}/complete`, { method: 'PATCH' });
+        loadTasks();
+    } catch {}
+}
+
+async function removeTask(id) {
+    try {
+        await api(`/api/tasks/${id}`, { method: 'DELETE' });
+        showToast('Tarea eliminada');
+        loadTasks();
+    } catch {}
+}
+
+async function clearDoneTasks() {
+    if (!confirm('¿Limpiar todas las tareas completadas?')) return;
+    await api('/api/tasks/done/clear', { method: 'DELETE' });
+    showToast('Completadas eliminadas 🧹');
+    loadTasks();
+}
+
+function setTaskFilter(filter, btn) {
+    taskFilter = filter;
+    document.querySelectorAll('.tab-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadTasks();
+}
+
+// ── Downloads ─────────────────────────────────────────────────────────────────
+async function loadDownloads() {
+    try {
+        const d = await api('/api/downloads');
+        renderDownloads(d.downloads);
+        loadSummary();
+    } catch {}
+}
+
+function renderDownloads(list) {
+    const el = document.getElementById('downloadList');
+    if (!list || list.length === 0) {
+        el.innerHTML = '<div class="empty">No hay descargas todavía. Envía una URL desde WhatsApp o desde aquí.</div>';
+        return;
+    }
+    el.innerHTML = list.map(e => `
+        <div class="dl-item">
+            <div class="dl-icon">🎬</div>
+            <div class="dl-info">
+                <div class="dl-title">${escHtml(e.title || e.filename)}</div>
+                <div class="dl-meta">${e.ext?.toUpperCase() || 'MP4'} · ${formatSize(e.size)} · ${new Date(e.createdAt).toLocaleDateString()}</div>
+            </div>
+            <div class="dl-actions">
+                <a href="/api/downloads/${e.id}/file" class="btn btn-ghost btn-sm" download>⬇</a>
+                <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteDownload('${e.id}')">🗑</button>
+            </div>
+        </div>`).join('');
+}
+
+async function startDownload() {
+    const url = document.getElementById('dlUrl').value.trim();
+    if (!url) return showToast('Pega una URL primero');
+    const btn = document.getElementById('dlBtn');
     btn.disabled = true;
+    setStatus('dlStatus', '⏳ Descargando... esto puede tomar un minuto.', 'info');
     try {
-        const r = await fetch(`/images/${id}`, { method: 'DELETE' });
-        const d = await r.json();
-        if (d.success) { loadImages(); toast('Imagen eliminada', 'info'); }
-        else throw new Error(d.message);
-    } catch (err) {
-        toast('Error: ' + err.message, 'error');
+        const d = await api('/api/downloads', { method: 'POST', body: { url } });
+        if (d.success) {
+            setStatus('dlStatus', `✅ Descargado: ${d.entry.title || d.entry.filename}`, 'success');
+            document.getElementById('dlUrl').value = '';
+            loadDownloads();
+        } else {
+            setStatus('dlStatus', d.message, 'error');
+        }
+    } catch (e) {
+        setStatus('dlStatus', `❌ ${e.message}`, 'error');
+    } finally {
         btn.disabled = false;
     }
 }
 
-// ── Config ──────────────────────────────────────────────────────────────────
+async function deleteDownload(id) {
+    await api(`/api/downloads/${id}`, { method: 'DELETE' });
+    showToast('Eliminado');
+    loadDownloads();
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
 async function loadConfig() {
     try {
-        const [cfgRes, modRes] = await Promise.all([fetch('/bot/config'), fetch('/bot/models')]);
-        const cfg = await cfgRes.json();
-        const mod = await modRes.json();
+        const [cfg, modelsRes] = await Promise.all([api('/api/config'), api('/api/models')]);
 
-        const sel = document.getElementById('aiModel');
-        sel.innerHTML = '';
-        mod.models.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = opt.textContent = m;
-            if (m === cfg.model) opt.selected = true;
-            sel.appendChild(opt);
-        });
+        document.getElementById('cfgName').value        = cfg.name        || '';
+        document.getElementById('cfgOwnerName').value   = cfg.ownerName   || '';
+        document.getElementById('cfgLanguage').value    = cfg.language    || '';
+        document.getElementById('cfgApiKey').value      = cfg.apiKey      || '';
+        document.getElementById('cfgMaxHistory').value  = cfg.maxHistory  || 15;
+        document.getElementById('cfgPersonality').value = cfg.personality || '';
 
-        document.getElementById('systemPrompt').value = cfg.systemPrompt || '';
-        document.getElementById('maxHistory').value   = cfg.maxHistory   || 10;
-        if (cfg.hasKey) document.getElementById('apiKey').placeholder = '● clave guardada';
-    } catch (_) {}
+        const sel = document.getElementById('cfgModel');
+        sel.innerHTML = modelsRes.models.map(m => `<option value="${m}" ${m === cfg.model ? 'selected' : ''}>${m}</option>`).join('');
+
+        document.getElementById('sidebarName').textContent = cfg.name || 'Asistente';
+    } catch {}
 }
 
 async function saveConfig() {
-    const apiKey       = document.getElementById('apiKey').value.trim();
-    const model        = document.getElementById('aiModel').value;
-    const systemPrompt = document.getElementById('systemPrompt').value;
-    const maxHistory   = document.getElementById('maxHistory').value;
-    const body = { model, systemPrompt, maxHistory: Number(maxHistory) };
+    const body = {
+        name:        document.getElementById('cfgName').value.trim(),
+        ownerName:   document.getElementById('cfgOwnerName').value.trim(),
+        language:    document.getElementById('cfgLanguage').value.trim(),
+        model:       document.getElementById('cfgModel').value,
+        maxHistory:  Number(document.getElementById('cfgMaxHistory').value),
+        personality: document.getElementById('cfgPersonality').value.trim(),
+    };
+    const apiKey = document.getElementById('cfgApiKey').value.trim();
     if (apiKey) body.apiKey = apiKey;
 
-    setStatus('configStatus', 'Guardando…', 'info');
     try {
-        const r = await fetch('/bot/config', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        const d = await r.json();
-        if (!d.success) throw new Error('Error al guardar');
-        if (apiKey) { document.getElementById('apiKey').value = ''; document.getElementById('apiKey').placeholder = '● clave guardada'; }
+        await api('/api/config', { method: 'POST', body });
         setStatus('configStatus', '✅ Configuración guardada', 'success');
-        toast('Guardado ✅', 'success');
-    } catch (err) {
-        setStatus('configStatus', '❌ ' + err.message, 'error');
+        document.getElementById('sidebarName').textContent = body.name || 'Asistente';
+        showToast('Configuración guardada ✅');
+    } catch (e) {
+        setStatus('configStatus', `❌ ${e.message}`, 'error');
     }
 }
 
 function toggleKey() {
-    const input = document.getElementById('apiKey');
-    input.type  = input.type === 'password' ? 'text' : 'password';
+    const el = document.getElementById('cfgApiKey');
+    el.type = el.type === 'password' ? 'text' : 'password';
 }
 
-// ── Prospecting ──────────────────────────────────────────────────────────────
-let prospectPollingInterval = null;
+async function clearHistory() {
+    if (!confirm('¿Limpiar el historial de todas las conversaciones?')) return;
+    await api('/api/clear-history', { method: 'POST' });
+    showToast('Historial limpiado 🗑️');
+}
 
-async function loadProspectStats() {
+// ── Summary ───────────────────────────────────────────────────────────────────
+async function loadSummary() {
     try {
-        const r = await fetch('/prospect/stats');
-        const d = await r.json();
-        renderProspectStats(d);
-        applyProspectState(d.config.enabled);
-        document.getElementById('pDelayMin').value   = d.config.delayMin   || 50;
-        document.getElementById('pDelayMax').value   = d.config.delayMax   || 100;
-        document.getElementById('pMaxPerHour').value = d.config.maxPerHour || 12;
-        document.getElementById('pTemplate').value   = d.config.template   || '';
-    } catch (_) {}
+        const [taskRes, dlRes] = await Promise.all([api('/api/tasks?filter=all'), api('/api/downloads')]);
+        const pending  = taskRes.tasks.filter(t => !t.done).length;
+        const done     = taskRes.tasks.filter(t => t.done).length;
+        document.getElementById('statPending').textContent   = pending;
+        document.getElementById('statDone').textContent      = done;
+        document.getElementById('statDownloads').textContent = dlRes.downloads.length;
+    } catch {}
 }
 
-function renderProspectStats(d) {
-    const statusLabels = {
-        idle: '⏸ En espera', scanning: '🔍 Escaneando grupos…',
-        sending: '📤 Enviando mensajes…', paused: '⏳ Pausa por límite de hora',
-        stopped: '⏹ Detenido',
-    };
-    const el = document.getElementById('prospectStats');
-    el.innerHTML = `
-        <div class="device-row"><strong>Estado:</strong> ${statusLabels[d.status] || d.status}</div>
-        <div class="device-row"><strong>Enviados hoy:</strong> ${d.totalSent} mensajes</div>
-        <div class="device-row"><strong>Esta hora:</strong> ${d.sentThisHour} / ${d.config.maxPerHour}</div>
-        <div class="device-row"><strong>En cola:</strong> ${d.queueSize} contactos</div>
-        <div class="device-row"><strong>Total contactados:</strong> ${d.totalContacted} personas</div>
-        ${d.lastSentAt ? `<div class="device-row sub">Último envío: ${new Date(d.lastSentAt).toLocaleString()}</div>` : ''}
-    `;
+// ── Utils ─────────────────────────────────────────────────────────────────────
+async function api(url, opts = {}) {
+    const res = await fetch(url, {
+        method:  opts.method || 'GET',
+        headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+        body:    opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    return data;
 }
 
-function applyProspectState(enabled) {
-    const btn   = document.getElementById('prospectBtn');
-    const title = document.getElementById('prospectTitle');
-    const sub   = document.getElementById('prospectSub');
-    btn.className     = 'power-btn ' + (enabled ? 'on' : 'off');
-    title.textContent = enabled ? 'Prospección activa' : 'Prospección apagada';
-    sub.textContent   = enabled
-        ? 'Enviando mensajes a miembros de grupos automáticamente'
-        : 'Activa para enviar mensajes a miembros de grupos';
+function setStatus(id, msg, type = 'info') {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.className   = 'card-status ' + (type === 'error' ? 'error' : type === 'success' ? 'success' : '');
+    el.style.display = 'block';
 }
 
-async function toggleProspect() {
-    try {
-        const r   = await fetch('/prospect/stats');
-        const d   = await r.json();
-        const now = d.config.enabled;
-
-        if (!now && currentStatus !== 'connected') {
-            toast('Primero vincula tu WhatsApp 📱', 'error');
-            return;
-        }
-
-        const endpoint = now ? '/prospect/stop' : '/prospect/start';
-        const res = await fetch(endpoint, { method: 'POST' });
-        const data = await res.json();
-
-        if (!res.ok || data.success === false) {
-            toast(data.message || 'Error', 'error');
-            return;
-        }
-
-        applyProspectState(!now);
-        renderProspectStats(data.stats || d);
-        toast(!now ? '🎯 Prospección iniciada' : '⏹ Prospección detenida', !now ? 'success' : 'info');
-
-        if (!now) startProspectPolling();
-        else stopProspectPolling();
-    } catch { toast('Error al cambiar estado', 'error'); }
+let toastTimer = null;
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
-async function resetProspected() {
-    if (!confirm('¿Reiniciar lista? Podrás volver a contactar a todos los usuarios.')) return;
-    const r = await fetch('/prospect/reset', { method: 'POST' });
-    const d = await r.json();
-    renderProspectStats(d.stats);
-    toast('Lista reiniciada ✅', 'info');
+function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function saveProspectConfig() {
-    const delayMin   = document.getElementById('pDelayMin').value;
-    const delayMax   = document.getElementById('pDelayMax').value;
-    const maxPerHour = document.getElementById('pMaxPerHour').value;
-    const template   = document.getElementById('pTemplate').value;
-
-    if (Number(delayMin) >= Number(delayMax)) {
-        toast('El delay mínimo debe ser menor al máximo', 'error');
-        return;
-    }
-
-    setStatus('prospectConfigStatus', 'Guardando…', 'info');
-    try {
-        const r = await fetch('/prospect/config', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delayMin: Number(delayMin), delayMax: Number(delayMax), maxPerHour: Number(maxPerHour), template }),
-        });
-        const d = await r.json();
-        if (!d.success) throw new Error('Error al guardar');
-        setStatus('prospectConfigStatus', '✅ Configuración guardada', 'success');
-        toast('Guardado ✅', 'success');
-    } catch (err) {
-        setStatus('prospectConfigStatus', '❌ ' + err.message, 'error');
-    }
+function formatSize(bytes) {
+    if (!bytes) return '?';
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
-
-function startProspectPolling() {
-    if (!prospectPollingInterval)
-        prospectPollingInterval = setInterval(loadProspectStats, 5000);
-}
-
-function stopProspectPolling() {
-    if (prospectPollingInterval) { clearInterval(prospectPollingInterval); prospectPollingInterval = null; }
-}
-
-// ── Init ────────────────────────────────────────────────────────────────────
-startStatusPolling();
-loadBotState();
-loadConfig();
-loadProspectStats();
