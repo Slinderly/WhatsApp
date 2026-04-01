@@ -76,10 +76,18 @@ async function handleAction(action, jid) {
         case 'download_video': {
             if (!action.url) return '❌ No encontré la URL del video.';
             try {
-                await wa.sendText(jid, '⏳ Descargando video, espera un momento...');
-                const entry = await downloader.download(action.url);
+                const opts = { quality: action.quality || '720p', format: action.format || 'mp4' };
+                const qualityPresets = downloader.getQualities();
+                const qLabel = qualityPresets.find(q => q.id === opts.quality)?.label || opts.quality;
+                await wa.sendText(jid, `⏳ Descargando en ${qLabel}... espera un momento.`);
+                const entry = await downloader.download(action.url, opts);
                 const buf   = fs.readFileSync(entry.filepath);
-                await wa.sendVideo(jid, buf, entry.filename, `📹 ${entry.title || 'Video'} (${downloader.formatSize(entry.size)})`);
+                const isAudio = entry.ext === 'mp3' || entry.ext === 'm4a';
+                if (isAudio) {
+                    await wa.sendAudio(jid, buf, entry.filename);
+                } else {
+                    await wa.sendVideo(jid, buf, entry.filename, `📹 ${entry.title || 'Video'} · ${qLabel} · ${downloader.formatSize(entry.size)}`);
+                }
                 return null;
             } catch (err) {
                 return `❌ Error al descargar: ${err.message}`;

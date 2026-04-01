@@ -78,8 +78,18 @@ GESTIÓN DE TAREAS:
 - Limpiar completadas → [ACTION:{"type":"clear_done"}]
 
 DESCARGA DE VIDEOS:
-- Descargar video → [ACTION:{"type":"download_video","url":"https://..."}]
+- Descargar video → [ACTION:{"type":"download_video","url":"https://...","quality":"720p","format":"mp4"}]
   Solo cuando el usuario envíe una URL válida y pida descargarla.
+  Calidades disponibles: "best" (máxima), "2160p" (4K), "1080p" (Full HD), "720p" (HD), "480p" (SD), "360p" (baja), "audio" (solo MP3)
+  Formatos disponibles: "mp4" (video), "mp3" (solo audio), "webm"
+  Si el usuario no especifica calidad, usa "720p" por defecto.
+  Si dice "máxima calidad" o "mejor calidad", usa "best".
+  Si dice "solo audio" o "solo música", usa quality "audio" y format "mp3".
+  Si dice "4K" o "ultra HD", usa "2160p".
+  Ejemplos:
+    "descarga en 1080p https://..." → quality:"1080p"
+    "quiero el audio de https://..." → quality:"audio", format:"mp3"
+    "baja en la mejor calidad https://..." → quality:"best"
 
 CONFIGURACIÓN DEL ASISTENTE (solo si el usuario pide cambiar algo):
 - Cambiar nombre del asistente → [ACTION:{"type":"update_config","key":"name","value":"NuevoNombre"}]
@@ -99,13 +109,24 @@ CONFIGURACIÓN DEL ASISTENTE (solo si el usuario pide cambiar algo):
 
 const parseActions = (text) => {
     const actions = [];
-    const cleaned = text.replace(/\[ACTION:(\{[^}]+\}(?:\})?)\]/g, (match, json) => {
+    // Extract [ACTION:{...}] blocks by balancing braces
+    const cleaned = text.replace(/\[ACTION:(\{[\s\S]*?\})\]/g, (match, json) => {
         try {
             const action = JSON.parse(json);
             actions.push(action);
-        } catch {}
+        } catch {
+            // Try fixing common AI JSON mistakes (single quotes, trailing commas)
+            try {
+                const fixed = json
+                    .replace(/'/g, '"')
+                    .replace(/,\s*}/g, '}')
+                    .replace(/,\s*]/g, ']');
+                const action = JSON.parse(fixed);
+                actions.push(action);
+            } catch {}
+        }
         return '';
-    }).trim();
+    }).replace(/\n{3,}/g, '\n\n').trim();
     return { reply: cleaned, actions };
 };
 

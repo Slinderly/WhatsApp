@@ -22,49 +22,83 @@ const isValidUrl = (str) => {
     try { new URL(str); return true; } catch { return false; }
 };
 
-const download = (url, onProgress) => new Promise((resolve, reject) => {
+// ── Quality presets ───────────────────────────────────────────────────────────
+const QUALITY_PRESETS = {
+    'best':   { fmt: 'bestvideo+bestaudio/best',              label: 'Máxima calidad' },
+    '2160p':  { fmt: 'bestvideo[height<=2160]+bestaudio/bestvideo[height<=2160]/best', label: '4K (2160p)' },
+    '1080p':  { fmt: 'bestvideo[height<=1080]+bestaudio/bestvideo[height<=1080]/best', label: 'Full HD (1080p)' },
+    '720p':   { fmt: 'bestvideo[height<=720]+bestaudio/bestvideo[height<=720]/best',   label: 'HD (720p)' },
+    '480p':   { fmt: 'bestvideo[height<=480]+bestaudio/bestvideo[height<=480]/best',   label: 'SD (480p)' },
+    '360p':   { fmt: 'bestvideo[height<=360]+bestaudio/bestvideo[height<=360]/best',   label: 'Baja (360p)' },
+    'audio':  { fmt: 'bestaudio/best', label: 'Solo audio (MP3)', audioOnly: true },
+};
+
+// ── Format presets ────────────────────────────────────────────────────────────
+const FORMAT_PRESETS = {
+    'mp4':  'mp4',
+    'webm': 'webm',
+    'mp3':  'mp3',
+    'm4a':  'm4a',
+};
+
+const getQualityPreset = (quality) => {
+    if (!quality) return QUALITY_PRESETS['720p'];
+    const q = String(quality).toLowerCase().trim();
+    return QUALITY_PRESETS[q] || QUALITY_PRESETS['720p'];
+};
+
+// ── Download ──────────────────────────────────────────────────────────────────
+const download = (url, opts = {}, onProgress) => new Promise((resolve, reject) => {
     if (!isValidUrl(url)) return reject(new Error('URL inválida'));
 
-    const id       = uuidv4().slice(0, 8);
-    const outTmpl  = path.join(DOWNLOADS_DIR, `${id}.%(ext)s`);
+    const quality  = getQualityPreset(opts.quality);
+    const audioOnly = quality.audioOnly || opts.format === 'mp3' || opts.format === 'm4a';
+    const outFmt   = audioOnly ? 'mp3' : (FORMAT_PRESETS[opts.format] || 'mp4');
+
+    const id      = uuidv4().slice(0, 8);
+    const outExt  = audioOnly ? 'mp3' : '%(ext)s';
+    const outTmpl = path.join(DOWNLOADS_DIR, `${id}.${outExt}`);
 
     const args = [
         url,
         '-o', outTmpl,
-        '--format', 'bestvideo[height<=720]+bestaudio/bestvideo+bestaudio/best',
-        '--merge-output-format', 'mp4',
+        '--format', quality.fmt,
         '--no-playlist',
-        '--max-filesize', '50m',
+        '--max-filesize', '100m',
         '--no-warnings',
         '--progress',
         '--newline',
     ];
 
-    const proc  = spawn(YTDLP_PATH, args);
-    let output  = '';
-    let errOut  = '';
-    let title   = 'Video';
+    if (audioOnly) {
+        args.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0');
+    } else {
+        args.push('--merge-output-format', outFmt);
+    }
+
+    const proc = spawn(YTDLP_PATH, args);
+    let output = '';
+    let errOut = '';
+    let title  = 'Video';
 
     proc.stdout.on('data', (d) => {
-        const line = d.toString();
-        output += line;
-        if (line.includes('[download]') && onProgress) onProgress(line.trim());
-        const tm = line.match(/\[(?:info|youtube|instagram|tiktok|twitter)\] [^:]+: (.+)/i);
-        if (tm && !tm[1].startsWith('Downloading') && tm[1].length > 3) title = tm[1].slice(0, 80);
-    });
-
-    proc.stderr.on('data', (d) => {
-        const line = d.toString();
-        errOut += line;
-        if (line.includes('title') && onProgress) {
-            const m = line.match(/title\s*:\s*(.+)/i);
-            if (m) title = m[1].trim().slice(0, 80);
+        const chunk = d.toString();
+        output += chunk;
+        for (const line of chunk.split('\n')) {
+            if (line.includes('[download]') && onProgress) onProgress(line.trim());
+            const tm = line.match(/\[(?:info|youtube|instagram|tiktok|twitter|generic)\] [^:]+: (.+)/i);
+            if (tm && tm[1].trim().length > 3 && !tm[1].startsWith('Downloading') && !tm[1].startsWith('Writing')) {
+                title = tm[1].trim().slice(0, 80);
+            }
         }
     });
 
+    proc.stderr.on('data', (d) => { errOut += d.toString(); });
+
     proc.on('close', (code) => {
         if (code !== 0) {
-            const lastErr = errOut.split('\n').filter(l => l.trim() && !l.startsWith('WARNING')).pop() || 'Error al descargar';
+            const lines = errOut.split('\n').filter(l => l.trim() && !l.startsWith('WARNING') && !l.startsWith('[debug]'));
+            const lastErr = lines.pop() || 'Error al descargar';
             return reject(new Error(lastErr.replace(/^ERROR: /, '')));
         }
 
@@ -85,6 +119,7 @@ const download = (url, onProgress) => new Promise((resolve, reject) => {
             filepath:  filePath,
             size:      stat.size,
             ext:       path.extname(filePath).slice(1),
+            quality:   quality.label,
             createdAt: new Date().toISOString(),
         };
 
@@ -99,7 +134,8 @@ const download = (url, onProgress) => new Promise((resolve, reject) => {
     proc.on('error', (e) => reject(new Error(`yt-dlp no encontrado: ${e.message}`)));
 });
 
-const getHistory = () => loadHistory();
+const getHistory    = ()   => loadHistory();
+const getQualities  = ()   => Object.entries(QUALITY_PRESETS).map(([k, v]) => ({ id: k, label: v.label }));
 
 const deleteDownload = (id) => {
     let history = loadHistory();
@@ -112,8 +148,9 @@ const deleteDownload = (id) => {
 };
 
 const formatSize = (bytes) => {
+    if (!bytes) return '?';
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
-module.exports = { download, getHistory, deleteDownload, formatSize, DOWNLOADS_DIR };
+module.exports = { download, getHistory, deleteDownload, formatSize, getQualities, DOWNLOADS_DIR };
