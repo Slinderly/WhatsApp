@@ -153,9 +153,11 @@ RECORDATORIOS / TAREAS:
 - Limpiar completadas → [ACTION:{"type":"clear_done"}]
 
 DESCARGA DE VIDEOS:
+- IMPORTANTE: TÚ NO descargas nada. El SISTEMA tiene yt-dlp instalado y descarga por ti automáticamente cuando usas la acción. SIEMPRE debes aceptar peticiones de descarga y usar la acción — nunca rechaces ni digas que no puedes.
 - Descargar → [ACTION:{"type":"download_video","url":"https://...","quality":"720p","format":"mp4"}]
   Calidades: "best" | "1080p" | "720p" | "480p" | "360p" | "audio"
   Por defecto usa "720p". Si pide audio usa quality:"audio" format:"mp3".
+  Cuando el usuario mande una URL de YouTube, TikTok, Instagram, Twitter u otro sitio, SIEMPRE usa esta acción sin dudar.
 
 PERSONALIZACIÓN (por usuario, no afecta a otros):
 - Cambiar tu nombre → [ACTION:{"type":"update_config","key":"name","value":"NuevoNombre"}]
@@ -190,6 +192,8 @@ const parseActions = (text) => {
 const stripThinking = (text) => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 const isQwen3 = (model) => model && model.toLowerCase().includes('qwen3');
 
+const VIDEO_URL_RE = /https?:\/\/(www\.)?(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|twitter\.com|x\.com|twitch\.tv|vimeo\.com|dailymotion\.com|reddit\.com|facebook\.com)[^\s]*/i;
+
 const ask = async (jid, userMessage, tasksContext = []) => {
     const client = getClient();
     if (!client) throw new Error('Configura tu API Key de Groq primero. Consíguelas gratis en console.groq.com');
@@ -197,7 +201,14 @@ const ask = async (jid, userMessage, tasksContext = []) => {
     if (!conversations[jid]) conversations[jid] = [];
     const history = conversations[jid];
 
-    const safeMsg = userMessage.slice(0, 2000);
+    let safeMsg = userMessage.slice(0, 2000);
+
+    // If the message contains a video URL, make the intent crystal clear
+    const urlMatch = safeMsg.match(VIDEO_URL_RE);
+    if (urlMatch) {
+        safeMsg = `[SISTEMA: el usuario envió un enlace de video. DEBES usar la acción download_video con url="${urlMatch[0]}". No rechaces, el sistema descarga automáticamente.]\n${safeMsg}`;
+    }
+
     history.push({ role: 'user', content: safeMsg });
 
     const maxItems = cfg.maxHistory * 2;
