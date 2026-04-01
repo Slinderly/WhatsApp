@@ -13,21 +13,12 @@
   <!-- ══ SIDEBAR ══════════════════════════════════════════════════ -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="logo">🤖 <span id="sidebarName">Asistente</span></div>
-      <small>Asistente Personal por WhatsApp</small>
+      <div class="logo">🤖 Asistente</div>
+      <small>Personal AI por WhatsApp</small>
     </div>
     <nav>
-      <button class="nav-btn active" data-tab="home">
-        <span class="nav-icon">🏠</span> Inicio
-      </button>
-      <button class="nav-btn" data-tab="connect">
+      <button class="nav-btn active" data-tab="connect">
         <span class="nav-icon">📱</span> Vincular
-      </button>
-      <button class="nav-btn" data-tab="tasks">
-        <span class="nav-icon">✅</span> Tareas
-      </button>
-      <button class="nav-btn" data-tab="downloads">
-        <span class="nav-icon">📥</span> Descargas
       </button>
       <button class="nav-btn" data-tab="simulator">
         <span class="nav-icon">💬</span> Probar IA
@@ -44,176 +35,57 @@
   <!-- ══ MAIN ═════════════════════════════════════════════════════ -->
   <main class="main">
 
-    <!-- ── TAB: INICIO ─────────────────────────────────────────── -->
-    <section class="tab active" id="tab-home">
-      <div class="tab-header">
-        <h1>Inicio</h1>
-        <p>Estado de tu asistente personal</p>
-      </div>
-
-      <div class="home-grid">
-
-        <div class="card status-card" id="deviceCard" style="display:none">
-          <div class="status-icon">✅</div>
-          <div>
-            <div class="card-title" style="margin:0 0 4px">WhatsApp Conectado</div>
-            <div id="deviceInfo" class="device-info"></div>
-            <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-top:8px" onclick="doDisconnect()">
-              Desconectar
-            </button>
-          </div>
-        </div>
-
-        <div class="card status-card" id="noDeviceCard">
-          <div class="status-icon">📱</div>
-          <div>
-            <div class="card-title" style="margin:0 0 4px">Sin WhatsApp vinculado</div>
-            <p class="card-desc" style="margin:0 0 12px">Vincula tu número para empezar a usar el asistente</p>
-            <button class="btn btn-primary" onclick="switchTab('connect')">Vincular ahora →</button>
-          </div>
-        </div>
-
-        <div class="card info-card">
-          <div class="card-title">💬 Comandos de ejemplo</div>
-          <div class="commands-list">
-            <div class="cmd"><span class="cmd-icon">📝</span><div><strong>Agregar recordatorio:</strong> "Recuérdame comprar leche"</div></div>
-            <div class="cmd"><span class="cmd-icon">✅</span><div><strong>Completar:</strong> "Listo, ya compré la leche"</div></div>
-            <div class="cmd"><span class="cmd-icon">📋</span><div><strong>Ver tareas:</strong> "Mis tareas pendientes"</div></div>
-            <div class="cmd"><span class="cmd-icon">📥</span><div><strong>Descargar video:</strong> "Descarga https://youtube.com/..."</div></div>
-            <div class="cmd"><span class="cmd-icon">🌐</span><div><strong>Cambiar idioma:</strong> "Habla en inglés"</div></div>
-            <div class="cmd"><span class="cmd-icon">⚙️</span><div><strong>Cambiar nombre:</strong> "Tu nombre es Mia"</div></div>
-          </div>
-        </div>
-
-        <div class="card info-card">
-          <div class="card-title">📊 Resumen</div>
-          <div class="summary-grid">
-            <div class="summary-item">
-              <span class="summary-num" id="statPending">—</span>
-              <span class="summary-label">Tareas pendientes</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-num" id="statDone">—</span>
-              <span class="summary-label">Completadas</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-num" id="statDownloads">—</span>
-              <span class="summary-label">Videos descargados</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
     <!-- ── TAB: VINCULAR ───────────────────────────────────────── -->
-    <section class="tab" id="tab-connect">
+    <section class="tab active" id="tab-connect">
       <div class="tab-header">
         <h1>Vincular WhatsApp</h1>
         <p>Conecta tu número para activar el asistente</p>
       </div>
 
-      <div class="connect-cards">
+      <!-- Connected state -->
+      <div class="card status-card" id="deviceCard" style="display:none">
+        <div class="status-icon">✅</div>
+        <div>
+          <div class="card-title" style="margin:0 0 4px">WhatsApp Conectado</div>
+          <div id="deviceInfo" class="device-info"></div>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-top:10px" onclick="doDisconnect()">
+            Desconectar
+          </button>
+        </div>
+      </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span class="badge badge-blue">QR</span>
-            Código QR
+      <div id="connectOptions">
+        <div class="connect-cards">
+
+          <div class="card">
+            <div class="card-title">
+              <span class="badge badge-blue">QR</span>
+              Código QR
+            </div>
+            <p class="card-desc">Abre WhatsApp → Ajustes → Dispositivos vinculados → Vincular dispositivo → Escanea el QR</p>
+            <div id="qrBox" class="qr-box">
+              <span>Presiona Generar QR</span>
+            </div>
+            <div id="qrStatus" class="card-status" style="display:none"></div>
+            <button class="btn btn-primary" onclick="startQR()">Generar QR</button>
           </div>
-          <p class="card-desc">Abre WhatsApp → Ajustes → Dispositivos vinculados → Vincular dispositivo → Escanea el QR</p>
-          <div id="qrBox" class="qr-box">
-            <span>Presiona Generar QR</span>
+
+          <div class="card">
+            <div class="card-title">
+              <span class="badge badge-green">CÓDIGO</span>
+              Código de emparejamiento
+            </div>
+            <p class="card-desc">WhatsApp → Dispositivos vinculados → Vincular con número de teléfono</p>
+            <div class="form-group">
+              <label>Número de teléfono</label>
+              <input id="pairPhone" type="tel" placeholder="+591 70000000" style="width:100%">
+              <small>Con código de país, sin espacios</small>
+            </div>
+            <div id="pairingCode" class="pairing-code" style="display:none"></div>
+            <div id="pairStatus" class="card-status" style="display:none"></div>
+            <button class="btn btn-primary" onclick="startPairing()">Obtener código</button>
           </div>
-          <div id="qrStatus" class="card-status" style="display:none"></div>
-          <button class="btn btn-primary" onclick="startQR()">Generar QR</button>
-        </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span class="badge badge-green">CÓDIGO</span>
-            Código de emparejamiento
-          </div>
-          <p class="card-desc">WhatsApp → Dispositivos vinculados → Vincular con número de teléfono</p>
-          <div class="form-group">
-            <label>Número de teléfono</label>
-            <input id="pairPhone" type="tel" placeholder="+591 70000000" style="width:100%">
-            <small>Con código de país, sin espacios</small>
-          </div>
-          <div id="pairingCode" class="pairing-code" style="display:none"></div>
-          <div id="pairStatus" class="card-status" style="display:none"></div>
-          <button class="btn btn-primary" onclick="startPairing()">Obtener código</button>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ── TAB: TAREAS ─────────────────────────────────────────── -->
-    <section class="tab" id="tab-tasks">
-      <div class="tab-header">
-        <h1>Mis Tareas</h1>
-        <p>Gestionadas también desde WhatsApp con la IA</p>
-      </div>
-
-      <div class="card">
-        <div class="add-task-row">
-          <input id="newTaskInput" type="text" placeholder="Nueva tarea..." onkeydown="if(event.key==='Enter')addTaskUI()">
-          <select id="newTaskPriority">
-            <option value="normal">Normal</option>
-            <option value="media">Media 🟡</option>
-            <option value="alta">Alta 🔴</option>
-          </select>
-          <button class="btn btn-primary" onclick="addTaskUI()">+ Agregar</button>
-        </div>
-        <div id="taskStatus" class="card-status" style="display:none"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">
-          Tareas
-          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-            <button class="tab-pill active" data-filter="all" onclick="setTaskFilter('all',this)">Todas</button>
-            <button class="tab-pill" data-filter="pending" onclick="setTaskFilter('pending',this)">Pendientes</button>
-            <button class="tab-pill" data-filter="done" onclick="setTaskFilter('done',this)">Completadas</button>
-            <button class="btn btn-ghost btn-sm" onclick="loadTasks()">↻</button>
-          </div>
-        </div>
-        <div id="taskList" class="task-list">
-          <div class="empty">Cargando tareas...</div>
-        </div>
-        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
-          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="clearDoneTasks()">🧹 Limpiar completadas</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── TAB: DESCARGAS ──────────────────────────────────────── -->
-    <section class="tab" id="tab-downloads">
-      <div class="tab-header">
-        <h1>Descargas de Videos</h1>
-        <p>Descarga videos desde WhatsApp enviando el enlace</p>
-      </div>
-
-      <div class="card">
-        <div class="card-title">
-          <span class="badge badge-blue">NUEVO</span>
-          Descargar video
-        </div>
-        <p class="card-desc">Pega cualquier URL de YouTube, TikTok, Instagram, Twitter y más. El video se enviará a tu WhatsApp automáticamente.</p>
-        <div class="form-group">
-          <input id="dlUrl" type="url" placeholder="https://www.youtube.com/watch?v=...">
-        </div>
-        <div id="dlStatus" class="card-status" style="display:none"></div>
-        <button class="btn btn-primary" id="dlBtn" onclick="startDownload()">📥 Descargar</button>
-        <p class="card-desc" style="margin-top:8px">💡 También puedes pedir una descarga desde WhatsApp: <em>"Descarga https://..."</em></p>
-      </div>
-
-      <div class="card">
-        <div class="card-title">
-          Historial de descargas
-          <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadDownloads()">↻</button>
-        </div>
-        <div id="downloadList" class="download-list">
-          <div class="empty">No hay descargas todavía.</div>
         </div>
       </div>
     </section>
@@ -222,14 +94,14 @@
     <section class="tab" id="tab-simulator">
       <div class="tab-header">
         <h1>Probar Asistente</h1>
-        <p>Simula una conversación de WhatsApp sin necesitar conectar tu teléfono</p>
+        <p>Simula una conversación sin necesitar conectar tu teléfono</p>
       </div>
 
       <div class="wa-phone">
         <div class="wa-header">
           <div class="wa-avatar">🤖</div>
           <div class="wa-header-info">
-            <div class="wa-name" id="simAssistantName">Asistente</div>
+            <div class="wa-name">Asistente</div>
             <div class="wa-status">en línea</div>
           </div>
           <button class="wa-clear-btn" onclick="clearSimulator()" title="Limpiar chat">🗑</button>
@@ -237,10 +109,6 @@
 
         <div class="wa-messages" id="simMessages">
           <div class="wa-date-sep">Hoy</div>
-          <div class="wa-bubble wa-bubble-in">
-            <span>¡Hola! Soy tu asistente personal. Puedes escribirme aquí para probar cómo respondo antes de conectar WhatsApp 👋</span>
-            <span class="wa-time">ahora</span>
-          </div>
         </div>
 
         <div class="wa-input-row">
@@ -257,7 +125,7 @@
         </div>
       </div>
 
-      <p class="sim-hint">💡 Cada sesión en el dashboard es independiente. La configuración (nombre, idioma, personalidad) se puede cambiar escribiendo en el chat: "Tu nombre es Mia", "Habla en inglés", etc.</p>
+      <p class="sim-hint">💡 Escribe "hola" para que el asistente se configure contigo. Cada usuario tiene su propia configuración independiente.</p>
     </section>
 
   </main>
@@ -266,21 +134,9 @@
 <!-- ══ BOTTOM NAV (mobile) ═══════════════════════════════════════ -->
 <nav class="bottom-nav">
   <div class="bottom-nav-inner">
-    <button class="bnav-btn active" data-tab="home">
-      <span class="bnav-icon">🏠</span>
-      <span class="bnav-label">Inicio</span>
-    </button>
-    <button class="bnav-btn" data-tab="connect">
+    <button class="bnav-btn active" data-tab="connect">
       <span class="bnav-icon">📱</span>
       <span class="bnav-label">Vincular</span>
-    </button>
-    <button class="bnav-btn" data-tab="tasks">
-      <span class="bnav-icon">✅</span>
-      <span class="bnav-label">Tareas</span>
-    </button>
-    <button class="bnav-btn" data-tab="downloads">
-      <span class="bnav-icon">📥</span>
-      <span class="bnav-label">Videos</span>
     </button>
     <button class="bnav-btn" data-tab="simulator">
       <span class="bnav-icon">💬</span>

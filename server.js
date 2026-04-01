@@ -77,18 +77,17 @@ async function handleAction(action, jid) {
             if (!action.url) return '❌ No encontré la URL del video.';
             const isSimulator = jid.endsWith('@dashboard');
             try {
-                const opts = { quality: action.quality || '720p', format: action.format || 'mp4' };
-                const qualityPresets = downloader.getQualities();
-                const qLabel = qualityPresets.find(q => q.id === opts.quality)?.label || opts.quality;
+                const opts   = { quality: action.quality || '720p', format: action.format || 'mp4' };
+                const qLabel = downloader.getQualities().find(q => q.id === opts.quality)?.label || opts.quality;
 
                 if (isSimulator) {
                     const entry = await downloader.download(action.url, opts);
                     const size  = downloader.formatSize(entry.size);
                     const link  = `/api/downloads/${entry.id}/file`;
-                    return `✅ Video listo: "${entry.title || entry.filename}" · ${qLabel} · ${size}\n\n📥 Descarga: ${link}`;
+                    return `✅ Listo: "${entry.title || entry.filename}" · ${qLabel} · ${size}\n\n📥 ${link}`;
                 }
 
-                await wa.sendText(jid, `⏳ Descargando en ${qLabel}... espera un momento.`);
+                await wa.sendText(jid, `⏳ Descargando en ${qLabel}...`);
                 const entry = await downloader.download(action.url, opts);
                 const buf   = fs.readFileSync(entry.filepath);
                 const isAudio = entry.ext === 'mp3' || entry.ext === 'm4a';
@@ -105,7 +104,7 @@ async function handleAction(action, jid) {
         }
 
         case 'update_config': {
-            const userAllowed  = ['name', 'ownerName', 'language', 'personality'];
+            const userAllowed   = ['name', 'ownerName', 'gender', 'language', 'personality'];
             const globalAllowed = ['model', 'apiKey', 'maxHistory'];
             if (userAllowed.includes(action.key)) {
                 assistant.setUserConfig(jid, { [action.key]: action.value });
@@ -114,6 +113,11 @@ async function handleAction(action, jid) {
             } else {
                 return '❌ Opción de configuración no válida.';
             }
+            return null;
+        }
+
+        case 'complete_setup': {
+            assistant.completeSetup(jid);
             return null;
         }
 
@@ -127,13 +131,11 @@ wa.on('disconnected', (d) => console.log(`[WA] Desconectado: ${d.reason}`));
 
 // ── REST API ──────────────────────────────────────────────────────────────────
 
-// Status
 app.get('/api/status', async (_req, res) => {
     const qr = await wa.getQR();
     res.json({ status: wa.getStatus(), device: wa.getDevice(), qr });
 });
 
-// Connect
 app.post('/api/connect/qr', (_req, res) => {
     if (wa.getStatus() !== 'connected') wa.connectQR();
     res.json({ success: true });
@@ -155,7 +157,7 @@ app.delete('/api/disconnect', (_req, res) => {
     res.json({ success: true });
 });
 
-// ── Simulator API ─────────────────────────────────────────────────────────────
+// ── Simulator ─────────────────────────────────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
     const { message, sessionId } = req.body;
     if (!message || !message.trim()) return res.status(400).json({ success: false, message: 'message requerido' });
@@ -183,71 +185,23 @@ app.delete('/api/chat/history', (req, res) => {
     res.json({ success: true });
 });
 
-// ── Tasks API ─────────────────────────────────────────────────────────────────
-app.get('/api/tasks', (req, res) => {
-    const filter = req.query.filter || 'all';
-    res.json({ tasks: tasks.getTasks(filter) });
-});
-
-app.post('/api/tasks', (req, res) => {
-    const { text, priority } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ success: false, message: 'text requerido' });
-    const task = tasks.addTask(text, priority);
-    res.json({ success: true, task });
-});
-
-app.patch('/api/tasks/:id/complete', (req, res) => {
-    const task = tasks.completeTask(req.params.id);
-    if (!task) return res.status(404).json({ success: false, message: 'No encontrada' });
-    res.json({ success: true, task });
-});
-
-app.delete('/api/tasks/:id', (req, res) => {
-    const task = tasks.deleteTask(req.params.id);
-    if (!task) return res.status(404).json({ success: false, message: 'No encontrada' });
-    res.json({ success: true, task });
-});
-
-app.delete('/api/tasks/done/clear', (_req, res) => {
-    const remaining = tasks.clearDone();
-    res.json({ success: true, remaining });
-});
-
-// ── Downloads API ─────────────────────────────────────────────────────────────
-app.get('/api/downloads', (_req, res) => {
-    res.json({ downloads: downloader.getHistory() });
-});
-
-app.post('/api/downloads', async (req, res) => {
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ success: false, message: 'url requerida' });
-    try {
-        const entry = await downloader.download(url);
-        res.json({ success: true, entry });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
+// ── Downloads (file served then deleted — always temporary) ───────────────────
 app.get('/api/downloads/:id/file', (req, res) => {
     const history = downloader.getHistory();
     const entry   = history.find(e => e.id === req.params.id);
     if (!entry || !fs.existsSync(entry.filepath)) return res.status(404).end();
-    res.download(entry.filepath, entry.filename);
+    res.download(entry.filepath, entry.filename, (err) => {
+        downloader.deleteDownload(entry.id);
+    });
 });
 
-app.delete('/api/downloads/:id', (req, res) => {
-    const ok = downloader.deleteDownload(req.params.id);
-    res.json({ success: ok });
-});
-
-// ── Assistant config API ──────────────────────────────────────────────────────
+// ── Global config (API key + model) ──────────────────────────────────────────
 app.get('/api/config', (_req, res) => {
     res.json(assistant.getConfig());
 });
 
 app.post('/api/config', (req, res) => {
-    const allowed = ['name', 'ownerName', 'language', 'personality', 'model', 'apiKey', 'maxHistory'];
+    const allowed = ['model', 'apiKey', 'maxHistory'];
     const updates = {};
     for (const k of allowed) {
         if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -258,11 +212,6 @@ app.post('/api/config', (req, res) => {
 
 app.get('/api/models', (_req, res) => {
     res.json({ models: assistant.getModels() });
-});
-
-app.post('/api/clear-history', (_req, res) => {
-    assistant.clearAllHistory();
-    res.json({ success: true });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

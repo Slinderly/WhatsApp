@@ -9,13 +9,9 @@ const USER_CONFIGS_FILE = path.join(DATA_DIR, 'user_configs.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const DEFAULTS = {
-    name:        'Asistente',
-    ownerName:   'Jefe',
-    language:    'español',
-    personality: 'Eres un asistente personal inteligente, útil y directo. Respondes de forma conversacional como en WhatsApp: corto, claro y natural. Usas emojis con moderación.',
-    model:       'llama-3.3-70b-versatile',
-    maxHistory:  15,
-    apiKey:      null,
+    model:      'llama-3.3-70b-versatile',
+    maxHistory: 15,
+    apiKey:     null,
 };
 
 let cfg = { ...DEFAULTS };
@@ -52,11 +48,15 @@ const setUserConfig = (jid, updates) => {
     if (!jid) return;
     const configs = loadUserConfigs();
     if (!configs[jid]) configs[jid] = {};
-    const allowed = ['name', 'ownerName', 'language', 'personality'];
+    const allowed = ['name', 'ownerName', 'gender', 'language', 'personality', 'isOnboarded'];
     for (const k of allowed) {
         if (updates[k] !== undefined) configs[jid][k] = updates[k];
     }
     saveUserConfigs(configs);
+};
+
+const completeSetup = (jid) => {
+    setUserConfig(jid, { isOnboarded: true });
 };
 
 let groqClient = null;
@@ -82,52 +82,93 @@ const getConfig = () => ({ ...cfg, hasKey: !!(cfg.apiKey || process.env.GROQ_API
 const conversations = {};
 
 const buildSystemPrompt = (tasks, jid = null) => {
-    const userCfg = getUserConfig(jid);
-    const name        = userCfg.name        || cfg.name;
-    const ownerName   = userCfg.ownerName   || cfg.ownerName;
-    const language    = userCfg.language    || cfg.language;
-    const personality = userCfg.personality || cfg.personality;
+    const u = getUserConfig(jid);
+
+    // ── ONBOARDING MODE ───────────────────────────────────────────────────────
+    if (!u.isOnboarded) {
+        const hasName      = !!u.name;
+        const hasOwnerName = !!u.ownerName;
+        const hasGender    = !!u.gender;
+
+        let nextStep = '';
+        if (!hasName)                          nextStep = 'Pregunta amigablemente cómo quiere que te llames (nombre del asistente). Sugiere que puede elegir cualquier nombre.';
+        else if (!hasOwnerName)                nextStep = 'Pregunta cómo se llama el usuario para poder llamarle por su nombre.';
+        else if (!hasGender)                   nextStep = 'Pregunta qué género prefiere para ti: masculino, femenino o neutral.';
+        else                                   nextStep = 'Ya tienes todo. Usa [ACTION:{"type":"complete_setup"}] y saluda al usuario con su nombre por primera vez.';
+
+        return `Eres un asistente personal inteligente configurándose por primera vez con este usuario.
+
+MODO CONFIGURACIÓN INICIAL — Recopila esta información de forma amigable y conversacional, UNA pregunta a la vez:
+
+Estado actual:
+- Tu nombre: ${hasName ? `"${u.name}" ✅` : 'no configurado'}
+- Nombre del usuario: ${hasOwnerName ? `"${u.ownerName}" ✅` : 'no configurado'}
+- Tu género: ${hasGender ? `"${u.gender}" ✅` : 'no configurado'}
+
+SIGUIENTE PASO: ${nextStep}
+
+Acciones disponibles al confirmar cada dato:
+[ACTION:{"type":"update_config","key":"name","value":"NombreElegido"}]
+[ACTION:{"type":"update_config","key":"ownerName","value":"NombreUsuario"}]
+[ACTION:{"type":"update_config","key":"gender","value":"femenino"}]   ← opciones: masculino / femenino / neutral
+
+Cuando los tres estén confirmados:
+[ACTION:{"type":"complete_setup"}]
+
+Reglas: sé cálido y natural. Una sola pregunta por mensaje. No menciones términos técnicos.
+Responde en español.`;
+    }
+
+    // ── NORMAL MODE ───────────────────────────────────────────────────────────
+    const name      = u.name      || 'Asistente';
+    const ownerName = u.ownerName || 'Jefe';
+    const gender    = u.gender    || 'neutral';
+    const language  = u.language  || 'español';
+    const personality = u.personality || (
+        gender === 'femenino'  ? 'Eres una asistente personal inteligente, útil y directa. Hablas de forma conversacional como en WhatsApp: corto, claro y natural. Usas emojis con moderación.' :
+        gender === 'masculino' ? 'Eres un asistente personal inteligente, útil y directo. Hablas de forma conversacional como en WhatsApp: corto, claro y natural. Usas emojis con moderación.' :
+        'Eres un asistente personal inteligente, útil y directo. Hablas de forma conversacional como en WhatsApp: corto, claro y natural. Usas emojis con moderación.'
+    );
 
     const pending = tasks.filter(t => !t.done);
     const taskStr = pending.length > 0
-        ? `\nTareas pendientes (${pending.length}):\n` + pending.map((t, i) => `  ${i + 1}. [${t.id}] ${t.text}`).join('\n')
+        ? `\nRecordatorios/tareas pendientes (${pending.length}):\n` + pending.map((t, i) => `  ${i + 1}. [${t.id}] ${t.text}`).join('\n')
         : '\nNo hay tareas pendientes.';
 
     return `${personality}
 
-Tu nombre es ${name} y tu dueño se llama ${ownerName}. Responde siempre en ${language}.
+Tu nombre es ${name} y el usuario se llama ${ownerName}. Responde siempre en ${language}.
 ${taskStr}
 
 ════ ACCIONES DISPONIBLES ════
-Cuando el usuario pida algo, incluye al final de tu mensaje la línea [ACTION:json] necesaria. El sistema ejecutará la acción silenciosamente — TÚ eres quien responde al usuario, no el sistema.
+Incluye acciones [ACTION:json] al final de tu mensaje cuando sea necesario. Tú eres quien responde, el sistema ejecuta las acciones en silencio.
 
-GESTIÓN DE TAREAS:
-- Agregar tarea/recordatorio → [ACTION:{"type":"add_task","text":"descripción","priority":"normal"}]
-  (priority: "alta", "media", "normal")
-  Cuando agregues una tarea, responde naturalmente confirmando que la guardaste, sin esperar confirmación del sistema.
-- Completar tarea → [ACTION:{"type":"complete_task","index":1}]
-- Eliminar tarea → [ACTION:{"type":"delete_task","index":1}]
-- Ver tareas pendientes → [ACTION:{"type":"list_tasks","filter":"pending"}]
-- Ver todas → [ACTION:{"type":"list_tasks","filter":"all"}]
+RECORDATORIOS / TAREAS:
+- Agregar → [ACTION:{"type":"add_task","text":"descripción","priority":"normal"}]
+  (priority: "alta" | "media" | "normal")
+  Responde confirmando naturalmente que lo guardaste.
+- Completar → [ACTION:{"type":"complete_task","index":1}]
+- Eliminar → [ACTION:{"type":"delete_task","index":1}]
+- Listar → [ACTION:{"type":"list_tasks","filter":"pending"}]
 - Limpiar completadas → [ACTION:{"type":"clear_done"}]
 
 DESCARGA DE VIDEOS:
-- Descargar video → [ACTION:{"type":"download_video","url":"https://...","quality":"720p","format":"mp4"}]
-  Solo cuando el usuario envíe una URL válida y pida descargarla.
-  Calidades: "best", "2160p", "1080p", "720p", "480p", "360p", "audio"
-  Si no especifica calidad, usa "720p". Si dice "máxima calidad" usa "best". Si dice "solo audio" usa quality "audio" y format "mp3".
+- Descargar → [ACTION:{"type":"download_video","url":"https://...","quality":"720p","format":"mp4"}]
+  Calidades: "best" | "1080p" | "720p" | "480p" | "360p" | "audio"
+  Por defecto usa "720p". Si pide audio usa quality:"audio" format:"mp3".
 
-CONFIGURACIÓN PERSONAL (cada usuario puede configurar su propia experiencia):
-- Cambiar nombre del asistente → [ACTION:{"type":"update_config","key":"name","value":"Mia"}]
-- Cambiar cómo te llama → [ACTION:{"type":"update_config","key":"ownerName","value":"Carlos"}]
+PERSONALIZACIÓN (por usuario, no afecta a otros):
+- Cambiar tu nombre → [ACTION:{"type":"update_config","key":"name","value":"NuevoNombre"}]
+- Cambiar nombre del usuario → [ACTION:{"type":"update_config","key":"ownerName","value":"Nombre"}]
 - Cambiar idioma → [ACTION:{"type":"update_config","key":"language","value":"inglés"}]
-- Cambiar personalidad → [ACTION:{"type":"update_config","key":"personality","value":"Eres..."}]
+- Cambiar personalidad → [ACTION:{"type":"update_config","key":"personality","value":"..."}]
+- Cambiar género → [ACTION:{"type":"update_config","key":"gender","value":"masculino"}]
 
 ════ REGLAS ════
-- SIEMPRE responde conversacionalmente ANTES de cualquier [ACTION:...]
-- Para tareas y recordatorios: responde TÚ confirmando. No esperes al sistema.
-- Para lista de tareas: di que las traes y usa el ACTION — el sistema enviará la lista.
-- Sé natural, breve y amigable como en WhatsApp.`;
+- Responde conversacionalmente ANTES de cualquier [ACTION:...]
+- Para tareas: tú confirmas, el sistema ejecuta silenciosamente
+- Para listar tareas: el sistema añadirá la lista después de tu mensaje
+- Sé breve y natural como en WhatsApp`;
 };
 
 const parseActions = (text) => {
@@ -147,7 +188,6 @@ const parseActions = (text) => {
 };
 
 const stripThinking = (text) => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-
 const isQwen3 = (model) => model && model.toLowerCase().includes('qwen3');
 
 const ask = async (jid, userMessage, tasksContext = []) => {
@@ -196,4 +236,4 @@ const getModels = () => [
     'mixtral-8x7b-32768',
 ];
 
-module.exports = { ask, setConfig, setUserConfig, getConfig, clearHistory, clearAllHistory, getModels, loadConfig };
+module.exports = { ask, setConfig, setUserConfig, completeSetup, getConfig, clearHistory, clearAllHistory, getModels, loadConfig };
