@@ -48,20 +48,20 @@ async function handleAction(action, jid) {
     switch (action.type) {
 
         case 'add_task': {
-            const task = tasks.addTask(action.text, action.priority || 'normal');
-            return `✅ Tarea agregada: "${task.text}"`;
+            tasks.addTask(action.text, action.priority || 'normal');
+            return null;
         }
 
         case 'complete_task': {
             const done = tasks.completeTask(action.index);
             if (!done) return '❌ No encontré esa tarea.';
-            return `✅ Completada: "${done.text}"`;
+            return null;
         }
 
         case 'delete_task': {
             const del = tasks.deleteTask(action.index);
             if (!del) return '❌ No encontré esa tarea.';
-            return `🗑️ Eliminada: "${del.text}"`;
+            return null;
         }
 
         case 'list_tasks': {
@@ -69,8 +69,8 @@ async function handleAction(action, jid) {
         }
 
         case 'clear_done': {
-            const remaining = tasks.clearDone();
-            return `🧹 Limpiadas las completadas. Tienes ${remaining} tareas pendientes.`;
+            tasks.clearDone();
+            return null;
         }
 
         case 'download_video': {
@@ -96,17 +96,16 @@ async function handleAction(action, jid) {
         }
 
         case 'update_config': {
-            const allowed = ['name', 'ownerName', 'language', 'personality', 'model', 'apiKey', 'maxHistory'];
-            if (!allowed.includes(action.key)) return '❌ Opción de configuración no válida.';
-            const update = {};
-            update[action.key] = action.value;
-            assistant.setConfig(update);
-            const labels = {
-                name: 'Nombre del asistente', ownerName: 'Tu nombre',
-                language: 'Idioma', personality: 'Personalidad',
-                model: 'Modelo de IA', apiKey: 'API Key', maxHistory: 'Historial',
-            };
-            return `⚙️ ${labels[action.key] || action.key} actualizado.`;
+            const userAllowed  = ['name', 'ownerName', 'language', 'personality'];
+            const globalAllowed = ['model', 'apiKey', 'maxHistory'];
+            if (userAllowed.includes(action.key)) {
+                assistant.setUserConfig(jid, { [action.key]: action.value });
+            } else if (globalAllowed.includes(action.key)) {
+                assistant.setConfig({ [action.key]: action.value });
+            } else {
+                return '❌ Opción de configuración no válida.';
+            }
+            return null;
         }
 
         default:
@@ -144,6 +143,34 @@ app.post('/api/connect/pairing', async (req, res) => {
 
 app.delete('/api/disconnect', (_req, res) => {
     wa.disconnect();
+    res.json({ success: true });
+});
+
+// ── Simulator API ─────────────────────────────────────────────────────────────
+app.post('/api/chat', async (req, res) => {
+    const { message, sessionId } = req.body;
+    if (!message || !message.trim()) return res.status(400).json({ success: false, message: 'message requerido' });
+    const jid = `simulator_${sessionId || 'default'}@dashboard`;
+    try {
+        const allTasks = tasks.getTasks('all');
+        const { reply, actions } = await assistant.ask(jid, message.trim(), allTasks);
+
+        let finalReply = reply;
+        for (const action of actions) {
+            const result = await handleAction(action, jid);
+            if (result) finalReply = finalReply ? `${finalReply}\n\n${result}` : result;
+        }
+
+        res.json({ success: true, reply: finalReply || '...' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+app.delete('/api/chat/history', (req, res) => {
+    const { sessionId } = req.body;
+    const jid = `simulator_${sessionId || 'default'}@dashboard`;
+    assistant.clearHistory(jid);
     res.json({ success: true });
 });
 

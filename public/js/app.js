@@ -2,6 +2,8 @@
 let statusInterval = null;
 let qrInterval     = null;
 let taskFilter     = 'all';
+let simSessionId   = 'session_' + Math.random().toString(36).slice(2, 10);
+let simBusy        = false;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,8 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startStatusPolling();
     loadTasks();
     loadDownloads();
-    loadConfig();
     loadSummary();
+    loadSimAssistantName();
 });
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -29,6 +31,7 @@ function switchTab(name) {
 
     if (name === 'tasks')     loadTasks();
     if (name === 'downloads') loadDownloads();
+    if (name === 'simulator') { loadSimAssistantName(); document.getElementById('simInput')?.focus(); }
 }
 
 // ── Status polling ────────────────────────────────────────────────────────────
@@ -240,56 +243,87 @@ async function deleteDownload(id) {
     loadDownloads();
 }
 
-// ── Config ────────────────────────────────────────────────────────────────────
-async function loadConfig() {
+// ── Simulator ─────────────────────────────────────────────────────────────────
+async function loadSimAssistantName() {
     try {
-        const [cfg, modelsRes] = await Promise.all([api('/api/config'), api('/api/models')]);
-
-        document.getElementById('cfgName').value        = cfg.name        || '';
-        document.getElementById('cfgOwnerName').value   = cfg.ownerName   || '';
-        document.getElementById('cfgLanguage').value    = cfg.language    || '';
-        document.getElementById('cfgApiKey').value      = cfg.apiKey      || '';
-        document.getElementById('cfgMaxHistory').value  = cfg.maxHistory  || 15;
-        document.getElementById('cfgPersonality').value = cfg.personality || '';
-
-        const sel = document.getElementById('cfgModel');
-        sel.innerHTML = modelsRes.models.map(m => `<option value="${m}" ${m === cfg.model ? 'selected' : ''}>${m}</option>`).join('');
-
-        document.getElementById('sidebarName').textContent = cfg.name || 'Asistente';
+        const cfg = await api('/api/config');
+        const name = cfg.name || 'Asistente';
+        document.getElementById('simAssistantName').textContent = name;
+        document.getElementById('sidebarName').textContent = name;
     } catch {}
 }
 
-async function saveConfig() {
-    const body = {
-        name:        document.getElementById('cfgName').value.trim(),
-        ownerName:   document.getElementById('cfgOwnerName').value.trim(),
-        language:    document.getElementById('cfgLanguage').value.trim(),
-        model:       document.getElementById('cfgModel').value,
-        maxHistory:  Number(document.getElementById('cfgMaxHistory').value),
-        personality: document.getElementById('cfgPersonality').value.trim(),
-    };
-    const apiKey = document.getElementById('cfgApiKey').value.trim();
-    if (apiKey) body.apiKey = apiKey;
+function simNow() {
+    return new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+}
+
+function addSimBubble(text, type) {
+    const box = document.getElementById('simMessages');
+    const div = document.createElement('div');
+    div.className = `wa-bubble wa-bubble-${type}`;
+    div.innerHTML = `<span>${escHtml(text)}</span><span class="wa-time">${simNow()}</span>`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+}
+
+function addTypingIndicator() {
+    const box = document.getElementById('simMessages');
+    const div = document.createElement('div');
+    div.className = 'wa-bubble wa-bubble-typing';
+    div.id = 'simTyping';
+    div.textContent = 'escribiendo...';
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    document.getElementById('simTyping')?.remove();
+}
+
+async function sendSimMessage() {
+    if (simBusy) return;
+    const input = document.getElementById('simInput');
+    const text  = input.value.trim();
+    if (!text) return;
+
+    simBusy = true;
+    input.value = '';
+    document.getElementById('simSendBtn').disabled = true;
+
+    addSimBubble(text, 'out');
+    addTypingIndicator();
 
     try {
-        await api('/api/config', { method: 'POST', body });
-        setStatus('configStatus', '✅ Configuración guardada', 'success');
-        document.getElementById('sidebarName').textContent = body.name || 'Asistente';
-        showToast('Configuración guardada ✅');
+        const d = await api('/api/chat', { method: 'POST', body: { message: text, sessionId: simSessionId } });
+        removeTypingIndicator();
+        if (d.success) {
+            addSimBubble(d.reply, 'in');
+            loadSummary();
+        } else {
+            addSimBubble('❌ ' + d.message, 'in');
+        }
     } catch (e) {
-        setStatus('configStatus', `❌ ${e.message}`, 'error');
+        removeTypingIndicator();
+        addSimBubble('❌ ' + e.message, 'in');
+    } finally {
+        simBusy = false;
+        document.getElementById('simSendBtn').disabled = false;
+        input.focus();
     }
 }
 
-function toggleKey() {
-    const el = document.getElementById('cfgApiKey');
-    el.type = el.type === 'password' ? 'text' : 'password';
-}
-
-async function clearHistory() {
-    if (!confirm('¿Limpiar el historial de todas las conversaciones?')) return;
-    await api('/api/clear-history', { method: 'POST' });
-    showToast('Historial limpiado 🗑️');
+async function clearSimulator() {
+    if (!confirm('¿Limpiar la conversación?')) return;
+    await api('/api/chat/history', { method: 'DELETE', body: { sessionId: simSessionId } });
+    simSessionId = 'session_' + Math.random().toString(36).slice(2, 10);
+    const box = document.getElementById('simMessages');
+    box.innerHTML = `
+        <div class="wa-date-sep">Hoy</div>
+        <div class="wa-bubble wa-bubble-in">
+            <span>¡Hola! Conversación reiniciada. ¿En qué te puedo ayudar?</span>
+            <span class="wa-time">${simNow()}</span>
+        </div>`;
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────

@@ -29,8 +29,8 @@
       <button class="nav-btn" data-tab="downloads">
         <span class="nav-icon">📥</span> Descargas
       </button>
-      <button class="nav-btn" data-tab="config">
-        <span class="nav-icon">⚙️</span> Configurar
+      <button class="nav-btn" data-tab="simulator">
+        <span class="nav-icon">💬</span> Probar IA
       </button>
     </nav>
     <div class="sidebar-footer">
@@ -76,12 +76,12 @@
         <div class="card info-card">
           <div class="card-title">💬 Comandos de ejemplo</div>
           <div class="commands-list">
-            <div class="cmd"><span class="cmd-icon">📝</span><div><strong>Agregar tarea:</strong> "Recuérdame comprar leche"</div></div>
-            <div class="cmd"><span class="cmd-icon">✅</span><div><strong>Completar:</strong> "Completar tarea 1"</div></div>
+            <div class="cmd"><span class="cmd-icon">📝</span><div><strong>Agregar recordatorio:</strong> "Recuérdame comprar leche"</div></div>
+            <div class="cmd"><span class="cmd-icon">✅</span><div><strong>Completar:</strong> "Listo, ya compré la leche"</div></div>
             <div class="cmd"><span class="cmd-icon">📋</span><div><strong>Ver tareas:</strong> "Mis tareas pendientes"</div></div>
             <div class="cmd"><span class="cmd-icon">📥</span><div><strong>Descargar video:</strong> "Descarga https://youtube.com/..."</div></div>
-            <div class="cmd"><span class="cmd-icon">⚙️</span><div><strong>Cambiar nombre:</strong> "Tu nombre es Mia"</div></div>
             <div class="cmd"><span class="cmd-icon">🌐</span><div><strong>Cambiar idioma:</strong> "Habla en inglés"</div></div>
+            <div class="cmd"><span class="cmd-icon">⚙️</span><div><strong>Cambiar nombre:</strong> "Tu nombre es Mia"</div></div>
           </div>
         </div>
 
@@ -218,79 +218,46 @@
       </div>
     </section>
 
-    <!-- ── TAB: CONFIGURAR ─────────────────────────────────────── -->
-    <section class="tab" id="tab-config">
+    <!-- ── TAB: SIMULADOR ──────────────────────────────────────── -->
+    <section class="tab" id="tab-simulator">
       <div class="tab-header">
-        <h1>Configurar Asistente</h1>
-        <p>Personaliza tu asistente — también puedes hacerlo desde WhatsApp</p>
+        <h1>Probar Asistente</h1>
+        <p>Simula una conversación de WhatsApp sin necesitar conectar tu teléfono</p>
       </div>
 
-      <div class="config-grid">
+      <div class="wa-phone">
+        <div class="wa-header">
+          <div class="wa-avatar">🤖</div>
+          <div class="wa-header-info">
+            <div class="wa-name" id="simAssistantName">Asistente</div>
+            <div class="wa-status">en línea</div>
+          </div>
+          <button class="wa-clear-btn" onclick="clearSimulator()" title="Limpiar chat">🗑</button>
+        </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span class="badge badge-black">IDENTIDAD</span>
-            Información personal
-          </div>
-          <div class="form-group">
-            <label>Nombre del asistente</label>
-            <input id="cfgName" type="text" placeholder="Asistente">
-            <small>Cómo se llama tu IA</small>
-          </div>
-          <div class="form-group">
-            <label>Tu nombre</label>
-            <input id="cfgOwnerName" type="text" placeholder="Jefe">
-            <small>Cómo te llama el asistente</small>
-          </div>
-          <div class="form-group">
-            <label>Idioma</label>
-            <input id="cfgLanguage" type="text" placeholder="español">
-            <small>Idioma en el que responde</small>
+        <div class="wa-messages" id="simMessages">
+          <div class="wa-date-sep">Hoy</div>
+          <div class="wa-bubble wa-bubble-in">
+            <span>¡Hola! Soy tu asistente personal. Puedes escribirme aquí para probar cómo respondo antes de conectar WhatsApp 👋</span>
+            <span class="wa-time">ahora</span>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span class="badge badge-black">GROQ</span>
-            API & Modelo
-          </div>
-          <div class="form-group">
-            <label>API Key de Groq</label>
-            <div style="display:flex;gap:8px">
-              <input id="cfgApiKey" type="password" placeholder="gsk_..." style="flex:1">
-              <button class="btn btn-ghost btn-sm" onclick="toggleKey()" style="padding:10px 13px">👁</button>
-            </div>
-            <small>Gratis en <a href="https://console.groq.com" target="_blank">console.groq.com</a></small>
-          </div>
-          <div class="form-group">
-            <label>Modelo de IA</label>
-            <select id="cfgModel"></select>
-          </div>
-          <div class="form-group">
-            <label>Historial de mensajes</label>
-            <input id="cfgMaxHistory" type="number" min="2" max="40" value="15">
-            <small>Mensajes que recuerda por conversación</small>
-          </div>
+        <div class="wa-input-row">
+          <input
+            id="simInput"
+            type="text"
+            class="wa-input"
+            placeholder="Escribe un mensaje..."
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendSimMessage(); }"
+          >
+          <button class="wa-send-btn" onclick="sendSimMessage()" id="simSendBtn">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
         </div>
-
-        <div class="card" style="grid-column:1/-1">
-          <div class="card-title">
-            <span class="badge badge-gray">PERSONALIDAD</span>
-            Comportamiento del asistente
-          </div>
-          <p class="card-desc">Define cómo habla y actúa tu asistente. No incluyas instrucciones de tareas o descargas, eso ya está incluido automáticamente.</p>
-          <div class="form-group">
-            <textarea id="cfgPersonality" rows="6" placeholder="Eres un asistente personal inteligente..."></textarea>
-          </div>
-        </div>
-
       </div>
 
-      <div id="configStatus" class="card-status" style="margin:0 0 12px;display:none"></div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="saveConfig()">💾 Guardar configuración</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="clearHistory()">🗑️ Limpiar historial de conversaciones</button>
-      </div>
+      <p class="sim-hint">💡 Cada sesión en el dashboard es independiente. La configuración (nombre, idioma, personalidad) se puede cambiar escribiendo en el chat: "Tu nombre es Mia", "Habla en inglés", etc.</p>
     </section>
 
   </main>
@@ -315,9 +282,9 @@
       <span class="bnav-icon">📥</span>
       <span class="bnav-label">Videos</span>
     </button>
-    <button class="bnav-btn" data-tab="config">
-      <span class="bnav-icon">⚙️</span>
-      <span class="bnav-label">Config</span>
+    <button class="bnav-btn" data-tab="simulator">
+      <span class="bnav-icon">💬</span>
+      <span class="bnav-label">Probar</span>
     </button>
   </div>
 </nav>

@@ -2,8 +2,9 @@ const Groq = require('groq-sdk');
 const path = require('path');
 const fs   = require('fs');
 
-const DATA_DIR     = path.join(__dirname, '../data');
-const CONFIG_FILE  = path.join(DATA_DIR, 'assistant_config.json');
+const DATA_DIR          = path.join(__dirname, '../data');
+const CONFIG_FILE       = path.join(DATA_DIR, 'assistant_config.json');
+const USER_CONFIGS_FILE = path.join(DATA_DIR, 'user_configs.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -32,6 +33,32 @@ const saveConfig = () => {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
 };
 
+const loadUserConfigs = () => {
+    try { return JSON.parse(fs.readFileSync(USER_CONFIGS_FILE, 'utf8')); }
+    catch { return {}; }
+};
+
+const saveUserConfigs = (configs) => {
+    fs.writeFileSync(USER_CONFIGS_FILE, JSON.stringify(configs, null, 2));
+};
+
+const getUserConfig = (jid) => {
+    if (!jid) return {};
+    const configs = loadUserConfigs();
+    return configs[jid] || {};
+};
+
+const setUserConfig = (jid, updates) => {
+    if (!jid) return;
+    const configs = loadUserConfigs();
+    if (!configs[jid]) configs[jid] = {};
+    const allowed = ['name', 'ownerName', 'language', 'personality'];
+    for (const k of allowed) {
+        if (updates[k] !== undefined) configs[jid][k] = updates[k];
+    }
+    saveUserConfigs(configs);
+};
+
 let groqClient = null;
 const getClient = () => {
     const key = cfg.apiKey || process.env.GROQ_API_KEY;
@@ -54,75 +81,64 @@ const getConfig = () => ({ ...cfg, hasKey: !!(cfg.apiKey || process.env.GROQ_API
 
 const conversations = {};
 
-const buildSystemPrompt = (tasks) => {
+const buildSystemPrompt = (tasks, jid = null) => {
+    const userCfg = getUserConfig(jid);
+    const name        = userCfg.name        || cfg.name;
+    const ownerName   = userCfg.ownerName   || cfg.ownerName;
+    const language    = userCfg.language    || cfg.language;
+    const personality = userCfg.personality || cfg.personality;
+
     const pending = tasks.filter(t => !t.done);
     const taskStr = pending.length > 0
-        ? `\nTareas pendientes actuales (${pending.length}):\n` + pending.map((t, i) => `  ${i + 1}. [${t.id}] ${t.text}`).join('\n')
-        : '\nNo hay tareas pendientes actualmente.';
+        ? `\nTareas pendientes (${pending.length}):\n` + pending.map((t, i) => `  ${i + 1}. [${t.id}] ${t.text}`).join('\n')
+        : '\nNo hay tareas pendientes.';
 
-    return `${cfg.personality}
+    return `${personality}
 
-Tu nombre es ${cfg.name} y tu dueño se llama ${cfg.ownerName}. Responde siempre en ${cfg.language}.
+Tu nombre es ${name} y tu dueño se llama ${ownerName}. Responde siempre en ${language}.
 ${taskStr}
 
 ════ ACCIONES DISPONIBLES ════
-Cuando el usuario pide alguna de estas cosas, DEBES incluir al final de tu mensaje una o más líneas de acción con el formato exacto [ACTION:json]. Solo incluye el ACTION si realmente se necesita ejecutar algo.
+Cuando el usuario pida algo, incluye al final de tu mensaje la línea [ACTION:json] necesaria. El sistema ejecutará la acción silenciosamente — TÚ eres quien responde al usuario, no el sistema.
 
 GESTIÓN DE TAREAS:
-- Agregar tarea → [ACTION:{"type":"add_task","text":"descripción de la tarea","priority":"normal"}]
-  (priority puede ser: "alta", "media", "normal")
-- Completar tarea → [ACTION:{"type":"complete_task","index":1}] (usa el número de la lista)
+- Agregar tarea/recordatorio → [ACTION:{"type":"add_task","text":"descripción","priority":"normal"}]
+  (priority: "alta", "media", "normal")
+  Cuando agregues una tarea, responde naturalmente confirmando que la guardaste, sin esperar confirmación del sistema.
+- Completar tarea → [ACTION:{"type":"complete_task","index":1}]
 - Eliminar tarea → [ACTION:{"type":"delete_task","index":1}]
 - Ver tareas pendientes → [ACTION:{"type":"list_tasks","filter":"pending"}]
-- Ver todas las tareas → [ACTION:{"type":"list_tasks","filter":"all"}]
+- Ver todas → [ACTION:{"type":"list_tasks","filter":"all"}]
 - Limpiar completadas → [ACTION:{"type":"clear_done"}]
 
 DESCARGA DE VIDEOS:
 - Descargar video → [ACTION:{"type":"download_video","url":"https://...","quality":"720p","format":"mp4"}]
   Solo cuando el usuario envíe una URL válida y pida descargarla.
-  Calidades disponibles: "best" (máxima), "2160p" (4K), "1080p" (Full HD), "720p" (HD), "480p" (SD), "360p" (baja), "audio" (solo MP3)
-  Formatos disponibles: "mp4" (video), "mp3" (solo audio), "webm"
-  Si el usuario no especifica calidad, usa "720p" por defecto.
-  Si dice "máxima calidad" o "mejor calidad", usa "best".
-  Si dice "solo audio" o "solo música", usa quality "audio" y format "mp3".
-  Si dice "4K" o "ultra HD", usa "2160p".
-  Ejemplos:
-    "descarga en 1080p https://..." → quality:"1080p"
-    "quiero el audio de https://..." → quality:"audio", format:"mp3"
-    "baja en la mejor calidad https://..." → quality:"best"
+  Calidades: "best", "2160p", "1080p", "720p", "480p", "360p", "audio"
+  Si no especifica calidad, usa "720p". Si dice "máxima calidad" usa "best". Si dice "solo audio" usa quality "audio" y format "mp3".
 
-CONFIGURACIÓN DEL ASISTENTE (solo si el usuario pide cambiar algo):
-- Cambiar nombre del asistente → [ACTION:{"type":"update_config","key":"name","value":"NuevoNombre"}]
-- Cambiar nombre del dueño → [ACTION:{"type":"update_config","key":"ownerName","value":"Nombre"}]
+CONFIGURACIÓN PERSONAL (cada usuario puede configurar su propia experiencia):
+- Cambiar nombre del asistente → [ACTION:{"type":"update_config","key":"name","value":"Mia"}]
+- Cambiar cómo te llama → [ACTION:{"type":"update_config","key":"ownerName","value":"Carlos"}]
 - Cambiar idioma → [ACTION:{"type":"update_config","key":"language","value":"inglés"}]
-- Cambiar personalidad → [ACTION:{"type":"update_config","key":"personality","value":"Nueva personalidad..."}]
-- Cambiar modelo → [ACTION:{"type":"update_config","key":"model","value":"llama-3.3-70b-versatile"}]
-- Cambiar API Key → [ACTION:{"type":"update_config","key":"apiKey","value":"gsk_..."}]
+- Cambiar personalidad → [ACTION:{"type":"update_config","key":"personality","value":"Eres..."}]
 
-════ REGLAS IMPORTANTES ════
-- Siempre responde el texto conversacional ANTES de las líneas [ACTION:...]
-- Si no se necesita ejecutar ninguna acción, no incluyas [ACTION:...]
-- Sé natural y amigable como en una conversación de WhatsApp
-- Para tareas: si el usuario dice "lista mis tareas" o similar, simplemente usa el ACTION y di que las estás trayendo
-- El usuario puede pedirte varias acciones en un mensaje, ejecuta todas las necesarias`;
+════ REGLAS ════
+- SIEMPRE responde conversacionalmente ANTES de cualquier [ACTION:...]
+- Para tareas y recordatorios: responde TÚ confirmando. No esperes al sistema.
+- Para lista de tareas: di que las traes y usa el ACTION — el sistema enviará la lista.
+- Sé natural, breve y amigable como en WhatsApp.`;
 };
 
 const parseActions = (text) => {
     const actions = [];
-    // Extract [ACTION:{...}] blocks by balancing braces
     const cleaned = text.replace(/\[ACTION:(\{[\s\S]*?\})\]/g, (match, json) => {
         try {
-            const action = JSON.parse(json);
-            actions.push(action);
+            actions.push(JSON.parse(json));
         } catch {
-            // Try fixing common AI JSON mistakes (single quotes, trailing commas)
             try {
-                const fixed = json
-                    .replace(/'/g, '"')
-                    .replace(/,\s*}/g, '}')
-                    .replace(/,\s*]/g, ']');
-                const action = JSON.parse(fixed);
-                actions.push(action);
+                const fixed = json.replace(/'/g, '"').replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+                actions.push(JSON.parse(fixed));
             } catch {}
         }
         return '';
@@ -147,7 +163,7 @@ const ask = async (jid, userMessage, tasksContext = []) => {
     const maxItems = cfg.maxHistory * 2;
     if (history.length > maxItems) history.splice(0, history.length - maxItems);
 
-    const systemContent = buildSystemPrompt(tasksContext);
+    const systemContent = buildSystemPrompt(tasksContext, jid);
 
     const params = {
         model:       cfg.model,
@@ -180,4 +196,4 @@ const getModels = () => [
     'mixtral-8x7b-32768',
 ];
 
-module.exports = { ask, setConfig, getConfig, clearHistory, clearAllHistory, getModels, loadConfig };
+module.exports = { ask, setConfig, setUserConfig, getConfig, clearHistory, clearAllHistory, getModels, loadConfig };
