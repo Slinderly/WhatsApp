@@ -88,6 +88,7 @@ async function handleAction(action, jid) {
                 } else {
                     await wa.sendVideo(jid, buf, entry.filename, `📹 ${entry.title || 'Video'} · ${qLabel} · ${downloader.formatSize(entry.size)}`);
                 }
+                downloader.deleteDownload(entry.id);
                 return null;
             } catch (err) {
                 return `❌ Error al descargar: ${err.message}`;
