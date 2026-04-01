@@ -25,11 +25,11 @@ const isValidUrl = (str) => {
 // ── Quality presets ───────────────────────────────────────────────────────────
 const QUALITY_PRESETS = {
     'best':   { fmt: 'bestvideo+bestaudio/best',              label: 'Máxima calidad' },
-    '2160p':  { fmt: 'bestvideo[height<=2160]+bestaudio/bestvideo[height<=2160]/best', label: '4K (2160p)' },
-    '1080p':  { fmt: 'bestvideo[height<=1080]+bestaudio/bestvideo[height<=1080]/best', label: 'Full HD (1080p)' },
-    '720p':   { fmt: 'bestvideo[height<=720]+bestaudio/bestvideo[height<=720]/best',   label: 'HD (720p)' },
-    '480p':   { fmt: 'bestvideo[height<=480]+bestaudio/bestvideo[height<=480]/best',   label: 'SD (480p)' },
-    '360p':   { fmt: 'bestvideo[height<=360]+bestaudio/bestvideo[height<=360]/best',   label: 'Baja (360p)' },
+    '2160p':  { fmt: 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best[height<=2160]', label: '4K (2160p)' },
+    '1080p':  { fmt: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]', label: 'Full HD (1080p)' },
+    '720p':   { fmt: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]',   label: 'HD (720p)' },
+    '480p':   { fmt: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]',   label: 'SD (480p)' },
+    '360p':   { fmt: 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]',   label: 'Baja (360p)' },
     'audio':  { fmt: 'bestaudio/best', label: 'Solo audio (MP3)', audioOnly: true },
 };
 
