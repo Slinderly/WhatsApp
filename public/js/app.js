@@ -261,10 +261,21 @@ function addSimBubble(text, type) {
     const box = document.getElementById('simMessages');
     const div = document.createElement('div');
     div.className = `wa-bubble wa-bubble-${type}`;
-    div.innerHTML = `<span>${escHtml(text)}</span><span class="wa-time">${simNow()}</span>`;
+    div.innerHTML = `<span>${simFormatText(text)}</span><span class="wa-time">${simNow()}</span>`;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
     return div;
+}
+
+function simFormatText(text) {
+    return escHtml(text).replace(
+        /(https?:\/\/[^\s]+|\/api\/downloads\/[^\s]+)/g,
+        (url) => {
+            const href = url.startsWith('/') ? url : url;
+            const label = url.startsWith('/api/downloads/') ? '⬇ Descargar video' : url;
+            return `<a href="${href}" target="_blank" style="color:#075e54;font-weight:600;text-decoration:underline">${label}</a>`;
+        }
+    );
 }
 
 function addTypingIndicator() {

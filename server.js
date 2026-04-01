@@ -75,10 +75,19 @@ async function handleAction(action, jid) {
 
         case 'download_video': {
             if (!action.url) return '❌ No encontré la URL del video.';
+            const isSimulator = jid.endsWith('@dashboard');
             try {
                 const opts = { quality: action.quality || '720p', format: action.format || 'mp4' };
                 const qualityPresets = downloader.getQualities();
                 const qLabel = qualityPresets.find(q => q.id === opts.quality)?.label || opts.quality;
+
+                if (isSimulator) {
+                    const entry = await downloader.download(action.url, opts);
+                    const size  = downloader.formatSize(entry.size);
+                    const link  = `/api/downloads/${entry.id}/file`;
+                    return `✅ Video listo: "${entry.title || entry.filename}" · ${qLabel} · ${size}\n\n📥 Descarga: ${link}`;
+                }
+
                 await wa.sendText(jid, `⏳ Descargando en ${qLabel}... espera un momento.`);
                 const entry = await downloader.download(action.url, opts);
                 const buf   = fs.readFileSync(entry.filepath);
