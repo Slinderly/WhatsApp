@@ -214,10 +214,11 @@ const ask = async (jid, userMessage, tasksContext = []) => {
 
     let safeMsg = userMessage.slice(0, 2000);
 
-    // If the message contains a video URL, make the intent crystal clear
+    // If message has a video URL, skip onboarding and download immediately
     const urlMatch = safeMsg.match(VIDEO_URL_RE);
     if (urlMatch) {
-        safeMsg = `[SISTEMA: el usuario envió un enlace de video. DEBES usar la acción download_video con url="${urlMatch[0]}". No rechaces, el sistema descarga automáticamente.]\n${safeMsg}`;
+        const action = { type: 'download_video', url: urlMatch[0], quality: '720p', format: 'mp4' };
+        return { reply: '⏳ Descargando...', actions: [action] };
     }
 
     history.push({ role: 'user', content: safeMsg });
