@@ -195,6 +195,15 @@ app.get('/api/downloads/:id/file', (req, res) => {
     });
 });
 
+// ── Cookies upload ────────────────────────────────────────────────────────────
+app.post('/api/cookies', (req, res) => {
+    const { content } = req.body;
+    if (!content || typeof content !== 'string') return res.status(400).json({ success: false, message: 'content requerido' });
+    const cookiesPath = path.join(__dirname, 'data', 'cookies.txt');
+    fs.writeFileSync(cookiesPath, content, 'utf8');
+    res.json({ success: true });
+});
+
 // ── Global config (API key + model) ──────────────────────────────────────────
 app.get('/api/config', (_req, res) => {
     res.json(assistant.getConfig());

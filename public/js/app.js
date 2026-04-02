@@ -22,6 +22,7 @@ function switchTab(name) {
     document.getElementById(`tab-${name}`)?.classList.add('active');
     document.querySelectorAll(`[data-tab="${name}"]`).forEach(b => b.classList.add('active'));
     if (name === 'simulator') document.getElementById('simInput')?.focus();
+    if (name === 'config') loadConfigPanel();
 }
 
 // ── Status polling ────────────────────────────────────────────────────────────
@@ -177,7 +178,65 @@ async function clearSimulator() {
     box.innerHTML = `<div class="wa-date-sep">Hoy</div>`;
 }
 
-// ── Utils ─────────────────────────────────────────────────────────────────────
+// ── Config panel ──────────────────────────────────────────────────────────────
+async function loadConfigPanel() {
+    try {
+        const [cfg, modelsData] = await Promise.all([api('/api/config'), api('/api/models')]);
+        const keyInput = document.getElementById('cfgApiKey');
+        const modelSel = document.getElementById('cfgModel');
+        const keyStatus = document.getElementById('cfgKeyStatus');
+
+        if (cfg.hasKey) {
+            keyInput.placeholder = '••••••••••••••••••••••••••••••••';
+            keyStatus.textContent = '✅ API Key configurada';
+            keyStatus.style.color = 'var(--green, #25d366)';
+        }
+
+        modelSel.innerHTML = modelsData.models
+            .map(m => `<option value="${m}" ${m === cfg.model ? 'selected' : ''}>${m}</option>`)
+            .join('');
+    } catch {}
+}
+
+async function saveConfig() {
+    const key   = document.getElementById('cfgApiKey').value.trim();
+    const model = document.getElementById('cfgModel').value;
+    const body  = { model };
+    if (key) body.apiKey = key;
+
+    try {
+        await api('/api/config', { method: 'POST', body });
+        setStatus('cfgSaveStatus', '✅ Configuración guardada', 'success');
+        if (key) {
+            document.getElementById('cfgApiKey').value = '';
+            document.getElementById('cfgApiKey').placeholder = '••••••••••••••••••••••••••••••••';
+            document.getElementById('cfgKeyStatus').textContent = '✅ API Key configurada';
+            document.getElementById('cfgKeyStatus').style.color = 'var(--green, #25d366)';
+        }
+    } catch (e) {
+        setStatus('cfgSaveStatus', '❌ ' + e.message, 'error');
+    }
+}
+
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('cfgApiKey');
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+async function uploadCookies() {
+    const fileInput = document.getElementById('cookiesFile');
+    if (!fileInput.files.length) return setStatus('cookiesStatus', 'Selecciona un archivo primero', 'error');
+    const text = await fileInput.files[0].text();
+    try {
+        await api('/api/cookies', { method: 'POST', body: { content: text } });
+        setStatus('cookiesStatus', '✅ Cookies subidas correctamente', 'success');
+        fileInput.value = '';
+    } catch (e) {
+        setStatus('cookiesStatus', '❌ ' + e.message, 'error');
+    }
+}
+
+
 async function api(url, opts = {}) {
     const res = await fetch(url, {
         method:  opts.method || 'GET',

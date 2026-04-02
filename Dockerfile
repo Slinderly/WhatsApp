@@ -1,18 +1,23 @@
 FROM node:20-slim
 
-# Install system dependencies: ffmpeg + yt-dlp + chromium libs for Baileys
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     python3 \
-    python3-distutils \
-    build-essential \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp binary (no Python pip needed, single binary)
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-    -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
+# Install yt-dlp via pip
+RUN python3 -m ensurepip --upgrade && \
+    python3 -m pip install --no-cache-dir --break-system-packages yt-dlp && \
+    yt-dlp --version
+
+# Configure yt-dlp to use Node.js as JS runtime (already available in this image)
+# and set default player clients to avoid bot detection
+RUN mkdir -p /root/.config/yt-dlp && \
+    printf '--js-runtimes node\n--extractor-args youtube:player_client=android,web\n' \
+    > /root/.config/yt-dlp/config
 
 WORKDIR /app
 

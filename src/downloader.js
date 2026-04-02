@@ -16,21 +16,24 @@ const loadHistory = () => {
 
 const saveHistory = (h) => fs.writeFileSync(HISTORY_FILE, JSON.stringify(h, null, 2));
 
-const YTDLP_PATH = 'yt-dlp';
+// Use local binary if present (Windows dev), otherwise rely on PATH (Docker/Linux)
+const LOCAL_YTDLP = path.join(__dirname, '../yt-dlp.exe');
+const YTDLP_PATH  = fs.existsSync(LOCAL_YTDLP) ? LOCAL_YTDLP : 'yt-dlp';
 
 const isValidUrl = (str) => {
     try { new URL(str); return true; } catch { return false; }
 };
 
 // ── Quality presets ───────────────────────────────────────────────────────────
+// Fallback chain: prefer split streams → combined stream → absolute best available
 const QUALITY_PRESETS = {
-    'best':   { fmt: 'bestvideo+bestaudio/best',                                    label: 'Máxima calidad' },
-    '2160p':  { fmt: 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best',   label: '4K (2160p)' },
-    '1080p':  { fmt: 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',   label: 'Full HD (1080p)' },
-    '720p':   { fmt: 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',     label: 'HD (720p)' },
-    '480p':   { fmt: 'bestvideo[height<=480]+bestaudio/best[height<=480]/best',     label: 'SD (480p)' },
-    '360p':   { fmt: 'bestvideo[height<=360]+bestaudio/best[height<=360]/best',     label: 'Baja (360p)' },
-    'audio':  { fmt: 'bestaudio/best', label: 'Solo audio (MP3)', audioOnly: true },
+    'best':  { fmt: 'bestvideo+bestaudio/bestvideo/best',                                                                                    label: 'Máxima calidad' },
+    '2160p': { fmt: 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best[height<=2160]/bestvideo/best', label: '4K (2160p)' },
+    '1080p': { fmt: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo/best', label: 'Full HD (1080p)' },
+    '720p':  { fmt: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo/best',   label: 'HD (720p)' },
+    '480p':  { fmt: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/bestvideo/best',   label: 'SD (480p)' },
+    '360p':  { fmt: 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]/bestvideo/best',   label: 'Baja (360p)' },
+    'audio': { fmt: 'bestaudio[ext=m4a]/bestaudio/best', label: 'Solo audio (MP3)', audioOnly: true },
 };
 
 // ── Format presets ────────────────────────────────────────────────────────────
@@ -70,15 +73,28 @@ const download = (url, opts = {}, onProgress) => new Promise((resolve, reject) =
     const outExt  = audioOnly ? 'mp3' : '%(ext)s';
     const outTmpl = path.join(DOWNLOADS_DIR, `${id}.${outExt}`);
 
+        // Cookies support: use file if exists, otherwise try browser
+    const cookiesFile = path.join(DATA_DIR, 'cookies.txt');
+    const cookieArgs = [];
+    if (fs.existsSync(cookiesFile)) {
+        cookieArgs.push('--cookies', cookiesFile);
+    } else if (process.env.YTDLP_COOKIES_BROWSER) {
+        cookieArgs.push('--cookies-from-browser', process.env.YTDLP_COOKIES_BROWSER);
+    }
+
     const args = [
         url,
         '-o', outTmpl,
         '--format', quality.fmt,
         '--no-playlist',
-        '--max-filesize', '100m',
-        '--no-warnings',
+        '--max-filesize', '500m',
         '--progress',
         '--newline',
+        '--extractor-retries', '3',
+        '--fragment-retries', '3',
+        '--retries', '3',
+        '--extractor-args', 'youtube:player_client=android,web',
+        ...cookieArgs,
     ];
 
     if (audioOnly) {
@@ -109,8 +125,9 @@ const download = (url, opts = {}, onProgress) => new Promise((resolve, reject) =
     proc.on('close', (code) => {
         if (code !== 0) {
             const lines = errOut.split('\n').filter(l => l.trim() && !l.startsWith('WARNING') && !l.startsWith('[debug]'));
-            const lastErr = lines.pop() || 'Error al descargar';
-            return reject(new Error(lastErr.replace(/^ERROR: /, '')));
+            // Prefer lines with ERROR: prefix, fallback to last line
+            const errLine = lines.find(l => l.startsWith('ERROR:')) || lines.pop() || 'Error al descargar';
+            return reject(new Error(errLine.replace(/^ERROR: /, '')));
         }
 
         const files = fs.readdirSync(DOWNLOADS_DIR)

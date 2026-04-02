@@ -9,3 +9,5 @@ replit.nix
 .agents/
 .nomedia
 .database_uuid
+yt-dlp.exe
+yt-dlp

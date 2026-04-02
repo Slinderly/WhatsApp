@@ -23,6 +23,9 @@
       <button class="nav-btn" data-tab="simulator">
         <span class="nav-icon">💬</span> Probar IA
       </button>
+      <button class="nav-btn" data-tab="config">
+        <span class="nav-icon">⚙️</span> Configurar
+      </button>
     </nav>
     <div class="sidebar-footer">
       <div id="sidebarStatus" class="status-dot-wrap">
@@ -128,6 +131,46 @@
       <p class="sim-hint">💡 Escribe "hola" para que el asistente se configure contigo. Cada usuario tiene su propia configuración independiente.</p>
     </section>
 
+    <!-- ── TAB: CONFIGURAR ────────────────────────────────────────── -->
+    <section class="tab" id="tab-config">
+      <div class="tab-header">
+        <h1>Configuración</h1>
+        <p>API Key de Groq y ajustes del modelo</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔑 Groq API Key</div>
+        <p class="card-desc">Necesaria para que el asistente funcione. Consíguela gratis en <a href="https://console.groq.com" target="_blank">console.groq.com</a></p>
+        <div class="form-group">
+          <label>API Key</label>
+          <div style="display:flex;gap:8px">
+            <input id="cfgApiKey" type="password" placeholder="gsk_..." style="flex:1">
+            <button class="btn btn-ghost btn-sm" onclick="toggleApiKeyVisibility()" id="toggleKeyBtn" title="Mostrar/ocultar">👁</button>
+          </div>
+          <small id="cfgKeyStatus"></small>
+        </div>
+
+        <div class="form-group">
+          <label>Modelo</label>
+          <select id="cfgModel" style="width:100%"></select>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveConfig()">Guardar configuración</button>
+        <div id="cfgSaveStatus" class="card-status" style="display:none;margin-top:10px"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">🍪 Cookies de YouTube</div>
+        <p class="card-desc">Si yt-dlp falla con "Sign in to confirm", sube un archivo <code>cookies.txt</code> exportado desde tu navegador.</p>
+        <div class="form-group">
+          <label>Archivo cookies.txt</label>
+          <input id="cookiesFile" type="file" accept=".txt" style="width:100%">
+        </div>
+        <button class="btn btn-primary" onclick="uploadCookies()">Subir cookies</button>
+        <div id="cookiesStatus" class="card-status" style="display:none;margin-top:10px"></div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -141,6 +184,10 @@
     <button class="bnav-btn" data-tab="simulator">
       <span class="bnav-icon">💬</span>
       <span class="bnav-label">Probar</span>
+    </button>
+    <button class="bnav-btn" data-tab="config">
+      <span class="bnav-icon">⚙️</span>
+      <span class="bnav-label">Config</span>
     </button>
   </div>
 </nav>
