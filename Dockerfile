@@ -15,8 +15,8 @@ RUN pip3 install --no-cache-dir --break-system-packages yt-dlp \
 
 # Configure yt-dlp: use Node.js as JS runtime + android client to avoid bot detection
 RUN mkdir -p /root/.config/yt-dlp && \
-    printf '--js-runtimes node\n--extractor-args youtube:player_client=android,web\n' \
-    > /root/.config/yt-dlp/config
+    echo '--js-runtimes node' > /root/.config/yt-dlp/config && \
+    echo '--extractor-args youtube:player_client=android,web' >> /root/.config/yt-dlp/config
 
 WORKDIR /app
 
