@@ -12,3 +12,6 @@ path = "/api/status"
 initialDelay = 10
 timeout = 30
 interval = 60
+
+[[volumes]]
+mountPath = "/app/data"

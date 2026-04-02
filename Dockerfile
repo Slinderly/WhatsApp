@@ -13,10 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip3 install --no-cache-dir --break-system-packages yt-dlp \
     && yt-dlp --version
 
-# Configure yt-dlp: use Node.js as JS runtime + android client to avoid bot detection
+# Configure yt-dlp: use Node.js as JS runtime + tv_embedded client (no PO Token needed)
 RUN mkdir -p /root/.config/yt-dlp && \
     echo '--js-runtimes node' > /root/.config/yt-dlp/config && \
-    echo '--extractor-args youtube:player_client=android,web' >> /root/.config/yt-dlp/config
+    echo '--extractor-args youtube:player_client=tv_embedded,web' >> /root/.config/yt-dlp/config
 
 WORKDIR /app
 

@@ -228,8 +228,8 @@ async function uploadCookies() {
     if (!fileInput.files.length) return setStatus('cookiesStatus', 'Selecciona un archivo primero', 'error');
     const text = await fileInput.files[0].text();
     try {
-        await api('/api/cookies', { method: 'POST', body: { content: text } });
-        setStatus('cookiesStatus', '✅ Cookies subidas correctamente', 'success');
+        const d = await api('/api/cookies', { method: 'POST', body: { content: text } });
+        setStatus('cookiesStatus', '✅ Cookies guardadas. Para Railway: copia el contenido del archivo como variable de entorno YTDLP_COOKIES en tu proyecto.', 'success');
         fileInput.value = '';
     } catch (e) {
         setStatus('cookiesStatus', '❌ ' + e.message, 'error');
